@@ -51,17 +51,27 @@ def init():
     locale.setlocale(locale.LC_ALL, '')
 
     # install gettext
-    # locale_dir = 'locale'
-    locale_dir = None
     if os.path.isdir(sys.path[0]):
-        d = os.path.join(sys.path[0], 'locale')
+        neighbor_locale = os.path.join(sys.path[0], 'locale')
+        if os.path.isdir(neighbor_locale):
+            # There is a 'locale' directory next to the startup script.
+            locale_dir = neighbor_locale
+        else:
+            # Possibly a unix-style installation, use the default:
+            # {sys.prefix}/share/locale
+            locale_dir = None
     else:
-        # i.e. library.zip
-        d = os.path.join(os.path.dirname(sys.path[0]), 'locale')
-    if os.path.exists(d) and os.path.isdir(d):
-        locale_dir = d
-    # if locale_dir: locale_dir = os.path.normpath(locale_dir)
-    # gettext.install('pysol', locale_dir, unicode=True) # ngettext don't work
+        # If sys.path[0] is not a directory, we are probably running from a zip
+        # bundle (py2app or py2exe).
+        if sys.platform.startswith('darwin'):
+            # Py2app sets CWD to '.../PySolFC.app/Contents/Resources', where
+            # our locale dir should be.
+            locale_dir = 'locale'
+        else:
+            # Py2exe.
+            installation_root = os.path.dirname(sys.path[0])
+            locale_dir = os.path.join(installation_root, 'locale')
+
     gettext.bindtextdomain('pysol', locale_dir)
     gettext.textdomain('pysol')
 
