@@ -23,6 +23,9 @@
 
 import os
 import time
+import tkinter
+import tkinter.font
+import tkinter.ttk as ttk
 
 from pysollib.mfxutil import KwStruct
 from pysollib.mfxutil import format_time
@@ -30,10 +33,6 @@ from pysollib.mygettext import _
 from pysollib.settings import TOP_TITLE
 from pysollib.stats import ProgressionFormatter, PysolStatsFormatter
 from pysollib.ui.tktile.tkutil import bind, loadImage
-
-from six.moves import tkinter
-from six.moves import tkinter_font
-from six.moves import tkinter_ttk as ttk
 
 from .tkwidget import MfxDialog, MfxMessageDialog
 
@@ -49,14 +48,16 @@ class StatsDialog(MfxDialog):
 
         kw = self.initKw(kw)
         title = _('Statistics')
+        if player is None:
+            title = _('Demo Statistics')
         MfxDialog.__init__(self, parent, title, kw.resizable, kw.default)
 
         self.font = app.getFont('default')
-        self.tkfont = tkinter_font.Font(parent, self.font)
+        self.tkfont = tkinter.font.Font(parent, self.font)
         self.font_metrics = self.tkfont.metrics()
         style = ttk.Style(parent)
         heading_font = style.lookup('Heading', 'font')  # treeview heading
-        self.heading_tkfont = tkinter_font.Font(parent, heading_font)
+        self.heading_tkfont = tkinter.font.Font(parent, heading_font)
 
         self.selected_game = None
 
@@ -375,26 +376,35 @@ class TreeFormatter(PysolStatsFormatter):
         self.parent_window.tree_items.append(id)
         return 1
 
-    def writeLog(self, player, prev_games):
+    def writeLog(self, player, prev_games, sort_by='date'):
         if not player or not prev_games:
             return 0
         num_rows = 0
-        for result in self.getLogResults(player, prev_games):
+        results = self.getLogResults(player, prev_games)
+        if sort_by == 'gamenumber':
+            results.sort(key=lambda x: x[1])
+        elif sort_by == 'name':
+            results.sort(key=lambda x: x[0])
+        elif sort_by == 'status':
+            results.sort(key=lambda x: x[3])
+        for result in results:
             t1, t2, t3, t4, t5, t6 = result
             id = self.tree.insert("", "end", text=t1, values=(t2, t3, t4))
             self.parent_window.tree_items.append(id)
+            self.parent_window.games[id] = (t6, t2)
             num_rows += 1
             if num_rows > self.MAX_ROWS:
                 break
+
         return 1
 
-    def writeFullLog(self, player):
+    def writeFullLog(self, player, sort_by='date'):
         prev_games = self.app.stats.prev_games.get(player)
-        return self.writeLog(player, prev_games)
+        return self.writeLog(player, prev_games, sort_by=sort_by)
 
-    def writeSessionLog(self, player):
+    def writeSessionLog(self, player, sort_by='date'):
         prev_games = self.app.stats.session_games.get(player)
-        return self.writeLog(player, prev_games)
+        return self.writeLog(player, prev_games, sort_by=sort_by)
 
 
 # ************************************************************************
@@ -499,10 +509,10 @@ class LogDialog(MfxDialog):
     def __init__(self, parent, title, app, player, **kw):
 
         self.font = app.getFont('default')
-        self.tkfont = tkinter_font.Font(parent, self.font)
+        self.tkfont = tkinter.font.Font(parent, self.font)
         style = ttk.Style(parent)
         heading_font = style.lookup('Heading', 'font')  # treeview heading
-        self.heading_tkfont = tkinter_font.Font(parent, heading_font)
+        self.heading_tkfont = tkinter.font.Font(parent, heading_font)
         self.font_metrics = self.tkfont.metrics()
 
         self.CHAR_H = self.font_metrics['linespace']
@@ -512,7 +522,10 @@ class LogDialog(MfxDialog):
         title = _('Log')
         MfxDialog.__init__(self, parent, title, kw.resizable, kw.default)
 
-        # self.selected_game = None
+        self.top.wm_minsize(400, 200)
+
+        self.selected_game = None
+        self.selected_game_num = None
 
         top_frame, bottom_frame = self.createFrames(kw)
         notebook = ttk.Notebook(top_frame)
@@ -520,26 +533,42 @@ class LogDialog(MfxDialog):
 
         self.notebook_tabs = []
 
-        full_frame = FullLogFrame(self, notebook, app, player)
-        notebook.add(full_frame, text=_('Full log'))
-        self.notebook_tabs.append(full_frame._w)
-
         session_frame = SessionLogFrame(self, notebook, app, player)
         notebook.add(session_frame, text=_('Session log'))
+        self.session_log_frame = session_frame
         self.notebook_tabs.append(session_frame._w)
 
+        full_frame = FullLogFrame(self, notebook, app, player)
+        notebook.add(full_frame, text=_('Full log'))
+        self.full_log_frame = full_frame
+        self.notebook_tabs.append(full_frame._w)
+
         notebook.select(LogDialog.SELECTED_TAB)
-        #  bind(notebook, '<<NotebookTabChanged>>', self.tabChanged)
+        bind(notebook, '<<NotebookTabChanged>>', self.tabChanged)
 
         self.notebook = notebook
 
         focus = self.createButtons(bottom_frame, kw)
-        # self.tabChanged()               # configure buttons state
+        self.tabChanged()               # configure buttons state
         self.mainloop(focus, kw.timeout)
+
+    def tabChanged(self, *args):
+        w = self.notebook.select()
+        run_button = self.buttons[0]
+        indx = self.notebook_tabs.index(w)
+        if indx == 0:
+            g = self.session_log_frame.getSelectedGame()
+        else:
+            g = self.full_log_frame.getSelectedGame()
+        if g[0] is None:
+            run_button.config(state='disabled')
+        else:
+            run_button.config(state='normal')
 
     def initKw(self, kw):
         kw = KwStruct(kw,
-                      strings=(_("&OK"),
+                      strings=((_("&Play this game"), 402),
+                               "sep", _("&OK"),
                                (_("&Save to file"), 500)),
                       default=0,
                       width=76*self.CHAR_W,
@@ -548,16 +577,17 @@ class LogDialog(MfxDialog):
         return MfxDialog.initKw(self, kw)
 
     def mDone(self, button):
-        # self.selected_game = self.all_games_frame.getSelectedGame()
+
         w = self.notebook.select()
         indx = self.notebook_tabs.index(w)
         LogDialog.SELECTED_TAB = indx
-        if button == 500:               # "Save to file"
-            assert indx in (0, 1)
-            if indx == 0:               # "Full log"
-                button = 203
-            else:                       # "Session log"
-                button = 204
+        if indx == 0:
+            self.selected_game, self.selected_game_num \
+                = self.session_log_frame.getSelectedGame()
+        else:
+            self.selected_game, self.selected_game_num \
+                = self.full_log_frame.getSelectedGame()
+
         MfxDialog.mDone(self, button)
 
 
@@ -576,7 +606,9 @@ class FullLogFrame(AllGamesFrame):
         AllGamesFrame.__init__(self, dialog, parent, app, player, **kw)
         header = ('', '99999999999999999999', '9999-99-99  99:99',
                   'XXXXXXXXXXXX')
+        self.games = {}
         self.formatter.resizeHeader(player, header)
+        self.sort_by = 'date'
 
     def createHeader(self, player):
         header = self.formatter.getLogHeader()
@@ -584,21 +616,26 @@ class FullLogFrame(AllGamesFrame):
 
     def fillTreeview(self, player):
         if self.tree_items:
-            return
-        self.formatter.writeFullLog(player)
+            for item in self.tree.get_children():
+                self.tree.delete(item)
+            self.tree_items = []
+        self.formatter.writeFullLog(player, sort_by=self.sort_by)
 
-    def treeviewSelected(self, *args):
-        pass
-
-    def headerClick(self, column):
-        pass
+    def getSelectedGame(self):
+        sel = self.tree.selection()
+        if sel and len(sel) == 1:
+            if sel[0] in self.games:
+                return self.games[sel[0]]
+        return (None, None)
 
 
 class SessionLogFrame(FullLogFrame):
     def fillTreeview(self, player):
         if self.tree_items:
-            return
-        self.formatter.writeSessionLog(player)
+            for item in self.tree.get_children():
+                self.tree.delete(item)
+            self.tree_items = []
+        self.formatter.writeSessionLog(player, sort_by=self.sort_by)
 
 
 # ************************************************************************

@@ -25,11 +25,9 @@ import glob
 import os
 import traceback
 
-from pysollib.mfxutil import KwStruct, Struct
+from pysollib.mfxutil import Image, KwStruct, Struct, USE_PIL
 from pysollib.mygettext import _
 from pysollib.settings import DEBUG
-
-import six
 
 # ************************************************************************
 # * Abstract
@@ -181,10 +179,22 @@ class CSI:
     TYPE_DASHAVATARA_GANJIFA = 8
     TYPE_TRUMP_ONLY = 9
     TYPE_MATCHING = 10
+    TYPE_PUZZLE = 11
+    TYPE_ISHIDO = 12
 
     # cardset subtypes
+    # (french)
     SUBTYPE_NONE = 0
     SUBTYPE_JOKER_DECK = 1
+    # (puzzle)
+    SUBTYPE_3X3 = 3
+    SUBTYPE_4X4 = 4
+    SUBTYPE_5X5 = 5
+    SUBTYPE_6X6 = 6
+    SUBTYPE_7X7 = 7
+    SUBTYPE_8X8 = 8
+    SUBTYPE_9X9 = 9
+    SUBTYPE_10X10 = 10
 
     TYPE = {
         1:  _("French type (52-54 cards)"),
@@ -197,6 +207,8 @@ class CSI:
         8:  _("Dashavatara Ganjifa type (120 cards)"),
         9:  _("Trumps only type (variable cards)"),
         10: _("Matching type (variable cards)"),
+        11: _("Puzzle type (variable pieces)"),
+        12: _("Ishido type (36 tiles)")
     }
 
     TYPE_NAME = {
@@ -210,6 +222,20 @@ class CSI:
         8:  _("Dashavatara Ganjifa"),
         9:  _("Trumps only"),
         10: _("Matching"),
+        11: _("Puzzle"),
+        12: _("Ishido")
+    }
+
+    SUBTYPE_NAME = {
+        1:  {0: _("No Jokers"), 1: _("Joker Deck")},
+        11: {3: _("3x3"),
+             4: _("4x4"),
+             5: _("5x5"),
+             6: _("6x6"),
+             7: _("7x7"),
+             8: _("8x8"),
+             9: _("9x9"),
+             10: _("10x10")}
     }
 
     TYPE_ID = {
@@ -222,7 +248,9 @@ class CSI:
         7:  "navagraha-ganjifa",
         8:  "dashavatara-ganjifa",
         9:  "trumps-only",
-        10: "matching"
+        10: "matching",
+        11: "puzzle",
+        12: "ishido"
     }
 
     TYPE_SUITS = {
@@ -235,7 +263,9 @@ class CSI:
         7:  "abcdefghi",
         8:  "abcdefghij",
         9:  "",
-        10: ""
+        10: "",
+        11: "",
+        12: "abcdef"
     }
 
     TYPE_RANKS = {
@@ -249,6 +279,8 @@ class CSI:
         8:  list(range(12)),
         9:  list(range(0)),
         10: list(range(0)),
+        11: list(range(0)),
+        12: list(range(6))
     }
 
     TYPE_TRUMPS = {
@@ -262,10 +294,13 @@ class CSI:
         8:  (),
         9:  (),
         10: (),
+        11: (),
+        12: ()
     }
 
     # cardset styles
     STYLE = {
+        35: _("Abstract"),              #
         1:  _("Adult"),                #
         2:  _("Animals"),              #
         3:  _("Anime"),                #
@@ -275,14 +310,18 @@ class CSI:
         7:  _("Classic Look"),         #
         8:  _("Collectors"),           # scanned collectors cardsets
         9:  _("Computers"),            #
+        36: _("Divination"),            # e.g. fortunetelling decks
         10:  _("Engines"),              #
         11:  _("Fantasy"),              #
+        37:  _("Four Color"),           #
         30:  _("Ganjifa"),              #
         12:  _("Hanafuda"),             #
         29:  _("Hex A Deck"),           #
         13:  _("Holiday"),              #
+        34:  _("Ishido"),               #
         28:  _("Mahjongg"),             #
         32:  _("Matching"),             #
+        38:  _("Monochrome"),           #
         14:  _("Movies"),               #
         31:  _("Matrix"),               #
         15:  _("Music"),                #
@@ -292,6 +331,7 @@ class CSI:
         20:  _("Places"),               #
         21:  _("Plain"),                #
         22:  _("Products"),             #
+        33:  _("Puzzle"),               #
         18:  _("Round Cardsets"),       #
         23:  _("Science Fiction"),      #
         24:  _("Sports"),               #
@@ -318,6 +358,7 @@ class CSI:
         1005:  _("Italy"),             #
         1016:  _("Japan"),             #
         1002:  _("Netherlands"),       #
+        1022:  _("Portugal"),          #
         1007:  _("Russia"),            #
         1008:  _("Spain"),             #
         1017:  _("Sweden"),            #
@@ -434,7 +475,7 @@ class Cardset(Resource):
 
     def updateCardback(self, backname=None, backindex=None):
         # update default back
-        if isinstance(backname, six.string_types):
+        if isinstance(backname, str):
             if backname in self.backnames:
                 backindex = self.backnames.index(backname)
         if isinstance(backindex, int):
@@ -449,10 +490,16 @@ class CardsetManager(ResourceManager):
     def __init__(self):
         ResourceManager.__init__(self)
         self.registered_types = {}
+        self.registered_subtypes = {}
+        self.type_max_cards = {}
         self.registered_sizes = {}
         self.registered_styles = {}
         self.registered_nationalities = {}
         self.registered_dates = {}
+
+        self.uncategorized_styles = False
+        self.uncategorized_nationalities = False
+        self.uncategorized_dates = False
 
     def _check(self, cs):
         s = cs.type
@@ -466,6 +513,7 @@ class CardsetManager(ResourceManager):
         if s == CSI.TYPE_FRENCH:
             if cs.subtype == 1:
                 cs.trumps = list(range(2))
+                cs.nbottoms = 8
         elif s == CSI.TYPE_HANAFUDA:
             cs.nbottoms = 15
         elif s == CSI.TYPE_TAROCK:
@@ -503,7 +551,20 @@ class CardsetManager(ResourceManager):
             cs.nletters = 0
             cs.nshadows = 0
             cs.trumps = list(range(cs.ncards))
-
+        elif s == CSI.TYPE_PUZZLE:
+            # ???return 0                            ## FIXME
+            # cs.nbottoms = 7
+            # cs.ranks = ()
+            # cs.suits = ""
+            # cs.trumps = range(cs.ncards)
+            cs.nbottoms = 1
+            cs.nletters = 0
+            cs.nshadows = 0
+            cs.trumps = list(range(cs.ncards))
+        elif s == CSI.TYPE_ISHIDO:
+            cs.nbottoms = 1
+            cs.nletters = 0
+            cs.nshadows = 0
         else:
             return 0
         return 1
@@ -512,8 +573,8 @@ class CardsetManager(ResourceManager):
         if not self._check(cs):
             return
         cs.ncards = len(cs.ranks) * len(cs.suits) + len(cs.trumps)
-        cs.name = cs.name[:25]
-        if not (1 <= cs.si.size <= 5):
+        cs.name = cs.name[:30]
+        if not (CSI.SIZE_TINY <= cs.si.size <= CSI.SIZE_HIRES):
             CW, CH = cs.CARDW, cs.CARDH
             if CW <= 55 and CH <= 72:
                 cs.si.size = CSI.SIZE_TINY
@@ -530,12 +591,18 @@ class CardsetManager(ResourceManager):
         #
         keys = cs.styles[:]
         cs.si.styles = tuple([s for s in keys if s in CSI.STYLE])
+        if len(cs.si.styles) == 0:
+            self.uncategorized_styles = True
         for s in cs.si.styles:
             self.registered_styles[s] = self.registered_styles.get(s, 0) + 1
         cs.si.nationalities = tuple([s for s in keys if s in CSI.NATIONALITY])
+        if len(cs.si.nationalities) == 0:
+            self.uncategorized_nationalities = True
         for s in cs.si.nationalities:
             self.registered_nationalities[s] = \
                 self.registered_nationalities.get(s, 0) + 1
+        if cs.year == 0:
+            self.uncategorized_dates = True
         keys = (cs.year // 100,)
         cs.si.dates = tuple([s for s in keys if s in CSI.DATE])
         for s in cs.si.dates:
@@ -543,26 +610,110 @@ class CardsetManager(ResourceManager):
         #
         s = cs.si.type
         self.registered_types[s] = self.registered_types.get(s, 0) + 1
+        if self.registered_types[s] == 1:
+            self.registered_subtypes[s] = {}
+        ss = cs.si.subtype
+        self.registered_subtypes[s][ss] = \
+            self.registered_subtypes.get(s, 0).get(ss, 0) + 1
+        if s not in self.type_max_cards or self.type_max_cards[s] < cs.ncards:
+            self.type_max_cards[s] = cs.ncards
         s = cs.si.size
         self.registered_sizes[s] = self.registered_sizes.get(s, 0) + 1
         cs.updateCardback()
         ResourceManager.register(self, cs)
+
+    def identify_missing_cardsets(self):
+        missing = []
+        # This object should list the bare minimum cardset requirements
+        # for a PySol install that can play all games.
+        required_types = {
+            CSI.TYPE_FRENCH: {
+                CSI.SUBTYPE_JOKER_DECK
+            },
+            CSI.TYPE_HANAFUDA: {},
+            CSI.TYPE_TAROCK: {},
+            CSI.TYPE_MAHJONGG: {},
+            CSI.TYPE_HEXADECK: {},
+            CSI.TYPE_MUGHAL_GANJIFA: {},
+            CSI.TYPE_DASHAVATARA_GANJIFA: {},
+            CSI.TYPE_TRUMP_ONLY: {},
+            CSI.TYPE_PUZZLE: {
+                CSI.SUBTYPE_3X3,
+                CSI.SUBTYPE_4X4,
+                CSI.SUBTYPE_5X5,
+                CSI.SUBTYPE_6X6,
+                CSI.SUBTYPE_7X7,
+                CSI.SUBTYPE_8X8,
+                CSI.SUBTYPE_9X9,
+                CSI.SUBTYPE_10X10
+            },
+            CSI.TYPE_ISHIDO: {}
+        }
+        required_cards_needed = {
+            CSI.TYPE_TRUMP_ONLY: 100
+        }
+        for t in required_types.keys():
+            if t not in self.registered_types:
+                missing.append(CSI.TYPE_NAME[t])
+            else:
+                if len(required_types[t]) > 0:
+                    for tt in required_types[t]:
+                        if tt not in self.registered_subtypes[t]:
+                            missing.append(CSI.TYPE_NAME[t] + " (" +
+                                           CSI.SUBTYPE_NAME[t][tt] + ")")
+                if t in required_cards_needed:
+                    if self.type_max_cards[t] < required_cards_needed[t]:
+                        missing.append(CSI.TYPE_NAME[t] + " (" +
+                                       _("With %(cards)d or more cards" + ")")
+                                       % {'cards': required_cards_needed[t]})
+
+        missing.sort()
+        return missing
 
 
 # ************************************************************************
 # * Tile
 # ************************************************************************
 
+# TableTileInfo constants
+class TTI:
+    # tile size
+    SIZE_UNKNOWN = 0
+    SIZE_TILE = 1
+    SIZE_SD = 2
+    SIZE_HD = 3
+    SIZE_4K = 4
+
+
 class Tile(Resource):
     def __init__(self, **kw):
         kw['color'] = None
         kw['stretch'] = 0
         kw['save_aspect'] = 0
+        kw['size'] = 0
         Resource.__init__(self, **kw)
 
 
 class TileManager(ResourceManager):
-    pass
+    def register(self, tile):
+        if USE_PIL:
+            try:
+                img = Image.open(tile.filename)
+                TW, TH = img.size
+                if TW < 640 or TH < 480:
+                    tile.size = TTI.SIZE_TILE
+                elif TW < 1280 or TH < 720:
+                    tile.size = TTI.SIZE_SD
+                elif TW < 3840 or TH < 2160:
+                    tile.size = TTI.SIZE_HD
+                else:
+                    tile.size = TTI.SIZE_4K
+            except AttributeError:
+                tile.size = TTI.SIZE_UNKNOWN
+        else:
+            tile.size = TTI.SIZE_UNKNOWN
+
+        ResourceManager.register(self, tile)
 
 
 # ************************************************************************

@@ -22,6 +22,7 @@
 # ---------------------------------------------------------------------------##
 
 import os
+import tkinter
 
 from pysollib.mfxutil import KwStruct, USE_PIL
 from pysollib.mygettext import _
@@ -30,8 +31,6 @@ from pysollib.ui.tktile.selecttree import SelectDialogTreeData
 from pysollib.ui.tktile.tkcanvas import MfxCanvasImage
 from pysollib.ui.tktile.tkutil import loadImage
 from pysollib.util import CARDSET
-
-from six.moves import tkinter
 
 from .selecttree import SelectDialogTreeCanvas
 from .selecttree import SelectDialogTreeLeaf, SelectDialogTreeNode
@@ -92,9 +91,10 @@ class SelectCardsetData(SelectDialogTreeData):
                     SelectCardsetNode(
                         None, name, lambda cs, key=key: key in cs.si.styles))
         if nodes:
-            nodes.append(
-                SelectCardsetNode(
-                    None, _("Uncategorized"), lambda cs: not cs.si.styles))
+            if manager.uncategorized_styles:
+                nodes.append(
+                    SelectCardsetNode(
+                        None, _("Uncategorized"), lambda cs: not cs.si.styles))
             select_by_style = SelectCardsetNode(
                 None, _("by Style"), tuple(nodes))
         #
@@ -109,10 +109,11 @@ class SelectCardsetData(SelectDialogTreeData):
                         None, name,
                         lambda cs, key=key: key in cs.si.nationalities))
         if nodes:
-            nodes.append(
-                SelectCardsetNode(
-                    None, _("Uncategorized"),
-                    lambda cs: not cs.si.nationalities))
+            if manager.uncategorized_nationalities:
+                nodes.append(
+                    SelectCardsetNode(
+                        None, _("Uncategorized"),
+                        lambda cs: not cs.si.nationalities))
             select_by_nationality = SelectCardsetNode(
                 None, _("by Nationality"), tuple(nodes))
         #
@@ -126,9 +127,10 @@ class SelectCardsetData(SelectDialogTreeData):
                     SelectCardsetNode(
                         None, name, lambda cs, key=key: key in cs.si.dates))
         if nodes:
-            nodes.append(
-                SelectCardsetNode(
-                    None, _("Uncategorized"), lambda cs: not cs.si.dates))
+            if manager.uncategorized_dates:
+                nodes.append(
+                    SelectCardsetNode(
+                        None, _("Uncategorized"), lambda cs: not cs.si.dates))
             select_by_date = SelectCardsetNode(
                 None, _("by Date"), tuple(nodes))
         #

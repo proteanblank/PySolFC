@@ -23,8 +23,10 @@
 
 
 import math
+import random
 import time
 import traceback
+from io import BytesIO
 from pickle import Pickler, Unpickler, UnpicklingError
 
 import attr
@@ -67,12 +69,6 @@ from pysollib.settings import PACKAGE, TITLE, TOOLKIT, TOP_SIZE
 from pysollib.settings import VERSION, VERSION_TUPLE
 from pysollib.struct_new import NewStruct
 
-import random2
-
-import six
-from six import BytesIO
-from six.moves import range
-
 if TOOLKIT == 'tk':
     from pysollib.ui.tktile.solverdialog import reset_solver_dialog
 else:
@@ -105,7 +101,7 @@ def _updateStatus_process_key_val(tb, sb, k, v):
             # self.top.wm_title("%s - %s"
             # % (TITLE, self.getTitleName()))
             return
-        if isinstance(v, six.string_types):
+        if isinstance(v, str):
             if sb:
                 sb.updateText(gamenumber=v)
             # self.top.wm_title("%s - %s %s" % (TITLE,
@@ -147,7 +143,7 @@ def _updateStatus_process_key_val(tb, sb, k, v):
             if tb:
                 tb.updateText(player=_("Player\n"))
             return
-        if isinstance(v, six.string_types):
+        if isinstance(v, str):
             if tb:
                 # if self.app.opt.toolbar_size:
                 if tb.getSize():
@@ -169,7 +165,7 @@ def _updateStatus_process_key_val(tb, sb, k, v):
         if v is None:
             if sb:
                 sb.updateText(time='')
-        if isinstance(v, six.string_types):
+        if isinstance(v, str):
             if sb:
                 sb.updateText(time=v)
         return
@@ -785,7 +781,7 @@ class Game(object):
     def getGameNumber(self, format):
         s = self.random.getSeedAsStr()
         if format:
-            return "# " + s
+            return "#" + s
         return s
 
     # this is called from within createGame()
@@ -831,7 +827,8 @@ class Game(object):
         reset_solver_dialog()
         # unhide toplevel when we use a progress bar
         if not self.preview:
-            wm_map(self.top, maximized=self.app.opt.wm_maximized)
+            wm_map(self.top, maximized=self.app.opt.wm_maximized,
+                   fullscreen=self.app.opt.wm_fullscreen)
             self.top.busyUpdate()
         if TOOLKIT == 'gtk':
             # FIXME
@@ -913,7 +910,8 @@ class Game(object):
             stats=self.app.stats.getStats(self.app.opt.player, self.id))
         if not self.preview:
             self.updateMenus()
-            wm_map(self.top, maximized=self.app.opt.wm_maximized)
+            wm_map(self.top, maximized=self.app.opt.wm_maximized,
+                   fullscreen=self.app.opt.wm_fullscreen)
         self.setCursor(cursor=self.app.top_cursor)
         self.stats.update_time = time.time()
         self.busy = old_busy
@@ -1342,13 +1340,14 @@ class Game(object):
         if self.preview:
             return
         tb, sb = self.app.toolbar, self.app.statusbar
-        for k, v in six.iteritems(kw):
+        for k, v in kw.items():
             _updateStatus_process_key_val(tb, sb, k, v)
 
     def _unmapHandler(self, event):
         # pause game if root window has been iconified
         if self.app and not self.pause:
             self.app.menubar.mPause()
+        # should return EVENT_HANDLED or EVENT_PROPAGATE
 
     _resizeHandlerID = None
 
@@ -1372,6 +1371,7 @@ class Game(object):
         if self._resizeHandlerID:
             self.canvas.after_cancel(self._resizeHandlerID)
         self._resizeHandlerID = self.canvas.after(250, self._resizeHandler)
+        # should return EVENT_HANDLED or EVENT_PROPAGATE explicitly.
 
     def playSample(self, name, priority=0, loop=0):
 
@@ -1450,6 +1450,18 @@ class Game(object):
         # 10 - used internally in game preview
         if self.app.opt.animations == 0 or frames == 0:
             return
+
+        if TOOLKIT == 'kivy':
+            c0 = cards[0]
+            dx, dy = (x - c0.x), (y - c0.y)
+            base = float(self.app.opt.animations)
+            duration = base*base/30.0 + 0.05
+            for card in cards:
+                card.animatedMove(dx, dy, duration)
+            # self.top.waitAnimation(swallow=True, pickup=True)
+            # synchronise: ev. per option ?
+            return
+
         # init timer - need a high resolution for this to work
         clock, delay, skip = None, 1, 1
         if self.app.opt.animations >= 2:
@@ -1476,16 +1488,8 @@ class Game(object):
         if shadow < 0:
             shadow = self.app.opt.shadow
         shadows = ()
-        # start animation
-        if TOOLKIT == 'kivy':
-            c0 = cards[0]
-            dx, dy = (x - c0.x), (y - c0.y)
-            for card in cards:
-                base = float(self.app.opt.animations)
-                duration = base*0.1
-                card.animatedMove(dx, dy, duration)
-            return
 
+        # start animation
         if tkraise:
             for card in cards:
                 card.tkraise()
@@ -1775,6 +1779,8 @@ class Game(object):
             return
         if TOOLKIT == 'gtk':
             return
+        if TOOLKIT == 'kivy':
+            return
         if not Image:
             return
         self.canvas.hideAllItems()
@@ -1797,6 +1803,8 @@ class Game(object):
         return
 
     def redealAnimation(self):
+        if TOOLKIT == 'kivy':
+            return
         if self.preview:
             return
         if not self.app.opt.animations or not self.app.opt.redeal_animation:
@@ -2137,8 +2145,17 @@ class Game(object):
             self.finished = True
             self.playSample("gamelost", priority=1000)
             text = _("Game finished, but not without my help...")
-            hintsused = _("You used %(h)s hint(s) during this game.") % {
-                'h': self.stats.hints}
+            if self.stats.hints > 0 and not self.app.opt.free_hint:
+                if self.stats.demo_moves > 0:
+                    hintsused = _("You used %(h)s hint(s) and the demo " +
+                                  "during this game.") % {
+                        'h': self.stats.hints}
+                else:
+                    hintsused = _("You used %(h)s hint(s) during this " +
+                                  "game.") % {
+                        'h': self.stats.hints}
+            else:
+                hintsused = _("You used the demo during this game.")
             d = MfxMessageDialog(
                 self.top, title=_("Game finished"), bitmap="info",
                 text=_(text + '\n\n' + hintsused),
@@ -2257,6 +2274,9 @@ class Game(object):
                     self.finishMove()
                     if self.checkForWin():
                         return 1
+            if self.top is not None:
+                self.top.update_idletasks()
+                self.top.busyUpdate()
         return 0
 
     def _autoDeal(self, sound=True):
@@ -2614,6 +2634,7 @@ class Game(object):
         self.canvas.setTopImage(None)
         self.demo_logo = None
         self.demo = None
+        self.busy = False
         self.updateMenus()
 
     # demo event - play one demo move and check for win/loss
@@ -3263,6 +3284,7 @@ class Game(object):
     def saveGame(self, filename, protocol=-1):
         self.finishMove()       # just in case
         self.setCursor(cursor=CURSOR_WATCH)
+        rval = False
         try:
             self._saveGame(filename, protocol)
         except Exception as ex:
@@ -3270,8 +3292,10 @@ class Game(object):
             MfxExceptionDialog(self.top, ex, title=_("Save game error"),
                                text=_("Error while saving game"))
         else:
+            rval = True
             self.filename = filename
             self.setCursor(cursor=self.app.top_cursor)
+        return rval
 
     #
     # low level load/save
@@ -3343,8 +3367,8 @@ class Game(object):
         game.random = construct_random(initial_seed)
         state = pload()
         if (game.random is not None and
-                not isinstance(game.random, random2.Random) and
-                isinstance(state, int)):
+                not isinstance(game.random, random.Random) and
+                isinstance(state, tuple)):
             game.random.setstate(state)
         # if not hasattr(game.random, "origin"):
         # game.random.origin = game.random.ORIGIN_UNKNOWN
@@ -3421,6 +3445,11 @@ class Game(object):
         d = time.time() - self.stats.update_time + self.stats.elapsed_time
         self.updateStatus(time=format_time(d))
 
+    def displayPauseImage(self):
+        n = self.random.initial_seed % len(self.app.gimages.pause)
+        self.pause_logo = self.app.gimages.pause[int(n)]
+        self.canvas.setTopImage(self.pause_logo)
+
     def doPause(self):
         if self.finished:
             return
@@ -3432,9 +3461,7 @@ class Game(object):
         if self.pause:
             # self.updateTime()
             self.canvas.hideAllItems()
-            n = self.random.initial_seed % len(self.app.gimages.pause)
-            self.pause_logo = self.app.gimages.pause[int(n)]
-            self.canvas.setTopImage(self.pause_logo)
+            self.displayPauseImage()
         else:
             self.stats.update_time = time.time()
             self.updatePlayTime()
@@ -3481,7 +3508,11 @@ class Game(object):
 
     # for find_card_dialog
     def canFindCard(self):
-        return self.gameinfo.category != GI.GC_MATCHING
+        return self.gameinfo.category not in (GI.GC_MATCHING, GI.GC_PUZZLE) \
+            and self.gameinfo.si.game_type != GI.GT_SAMEGAME
+
+    def canShowFullPicture(self):
+        return self.gameinfo.category == GI.GC_PUZZLE
 
     #
     # subclass hooks

@@ -1689,6 +1689,9 @@ class DealRow_StackMethods:
             if flip:
                 self.game.flipMove(self)
             self.game.moveMove(1, self, r, frames=frames)
+        if frames > 0 and self.game.top is not None:
+            self.game.top.update_idletasks()
+            self.game.top.busyUpdate()
         self.game.leaveState(old_state)
         if TOOLKIT == 'kivy':
             self.game.top.waitAnimation()
@@ -1856,6 +1859,14 @@ class TalonStack(Stack,
                 # stack.removeCard(unhide=0, update=0)
         for stack in self.game.allstacks:
             stack.updateText()
+
+    def updateRedealImage(self):
+        deal = self.canDealCards() != 0
+        if self.images.redeal is not None:
+            img = (self.getRedealImages())[deal]
+            if img is not None and img is not self.images.redeal_img:
+                self.images.redeal.config(image=img)
+                self.images.redeal_img = img
 
     def updateText(self, update_rounds=1, update_redeal=1):
         # assertView(self)
@@ -2286,7 +2297,7 @@ class OpenStack(Stack):
     def getHelp(self):
         if self.cap.max_accept == 0:
             return _('Reserve. No building.')
-        return ''
+        return 'Reserve.'
 
 
 # ************************************************************************

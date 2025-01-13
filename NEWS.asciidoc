@@ -1,5 +1,28 @@
 [[news]]
 === News
+* _11 January, 2025:_ There is a new stable release
+https://sourceforge.net/projects/pysolfc/files/PySolFC/PySolFC-3.2.0/[PySolFC
+v3.2.0]. New in this release:
+** New fullscreen mode, accessible by pressing F11.
+** Easy option to clear advanced search options.
+** Lots of bugfixes and enhancements.
+* _19 October, 2024:_ There is a new stable release
+https://sourceforge.net/projects/pysolfc/files/PySolFC/PySolFC-3.1.0/[PySolFC
+v3.1.0]. New in this release:
+** Ten new games.
+** Cleanup of duplicate images to reduce package size.
+** Some extra cardset/table tile filter options.
+** Many enhancements, bugfixes, etc.
+* _31 March, 2024:_ There is a new stable release
+https://sourceforge.net/projects/pysolfc/files/PySolFC/PySolFC-3.0.0/[PySolFC
+v3.0.0] - the biggest release in over 15 years. Additionally, there is a new Cardsets release
+https://sourceforge.net/projects/pysolfc/files/PySolFC-Cardsets/PySolFC-Cardsets-3.0/[PySolFC-Cardsets v.3.0]. New in this release:
+** 120 new games.
+** Support for several new types of games/decks, including tile puzzles, Ishido-type tile matching games, joker deck games, and more.
+** New game and cardset categories.
+** Ability to change the style of virtually any of the graphics in PySol.
+** Some UI/Quality of Life improvements.
+** Bugfixes.
 * _10 July, 2023:_ There is a new beta release
 https://sourceforge.net/projects/pysolfc/files/PySolFC/PySolFC-2.21.0/[PySolFC
 v2.21.0]. New in this release:

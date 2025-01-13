@@ -43,7 +43,7 @@ def help_about(app, timeout=0, sound=True):
     t = _("A Python Solitaire Game Collection")
     if app.miscrandom.random() < 0.8:
         t = _("A World Domination Project")
-    strings = (_("&Nice"), _("&Credits..."))
+    strings = (_("&Nice"), _("&Credits"))
     if timeout:
         strings = (_("&Enjoy"),)
     version = _("Version %s") % VERSION
@@ -56,6 +56,7 @@ def help_about(app, timeout=0, sound=True):
 Copyright (C) 1998 - 2003 Markus F.X.J. Oberhumer.
 Copyright (C) 2003 Mt. Hood Playing Card Co.
 Copyright (C) 2005 - 2009 Skomoroh.
+Copyright (C) 2020 - 2025 PySolFC.
 All Rights Reserved.
 
 PySol is free software distributed under the terms
@@ -68,7 +69,9 @@ For more information about this application visit''') %
                          strings=strings, default=0,
                          separator=True)
     if d.status == 0 and d.button == 1:
-        help_credits(app, sound=sound)
+        viewer = help_html(app, "credits.html", "html")
+        viewer.parent.after(2, lambda: viewer.parent.focus_force())
+        # help_credits(app, sound=sound)
     return d.status
 
 
@@ -157,7 +160,19 @@ def help_html(app, document, dir_, top=None):
     viewer.parent.wm_deiconify()
     viewer.parent.tkraise()
     help_html_viewer = viewer
+    raise_help_html(app.game)
     return viewer
+
+
+def raise_help_html(game):
+    try:
+        if game.app.opt.topmost_dialogs:
+            help_html_viewer.parent.tkraise()
+            help_html_viewer.parent.attributes("-topmost", True)
+        else:
+            help_html_viewer.parent.attributes("-topmost", False)
+    except Exception:
+        pass
 
 
 def destroy_help_html():

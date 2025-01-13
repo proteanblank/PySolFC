@@ -1,16 +1,16 @@
 ---
-image: Visual Studio 2019
+image: Visual Studio 2022
 environment:
     matrix:
-        - PYTHON: "C:\\Python311"
+        - PYTHON: "C:\\Python312"
 # Shamelessly taken from https://github.com/plicease/Dist-Zilla-PluginBundle-Author-Plicease/blob/master/.appveyor.yml
 # Thanks!
 install:
     # - choco install strawberryperl
     - copy %PYTHON%\python.exe %PYTHON%\python3.exe
     - SET PATH=%PYTHON%;%PYTHON%\Scripts;C:\strawberry\c\bin;C:\strawberry\perl\site\bin;C:\strawberry\perl\bin;%PATH%
-    - python3 -mpip install Pillow==9.5 attrs configobj flake8 flake8-import-order
-        pycotap pygame pyinstaller pysol-cards random2 setuptools six
+    - python3 -mpip install Pillow attrs configobj flake8 flake8-import-order
+        pycotap pygame pyinstaller pysol-cards setuptools six
         ttkthemes
     - perl -v
     - copy C:\msys64\mingw64\bin\mingw32-make.exe C:\msys64\mingw64\bin\make.exe
@@ -32,13 +32,13 @@ test_script:
     - gmake pretest
     - perl run-tests.pl
     - gmake rules
-    - gmake pot
-    - gmake mo
+    #- gmake pot
+    #- gmake mo
     - pyinstaller pysol.py --windowed --icon=data\pysol.ico
     - python3 setup.py install_data -d dist\pysol
-    - appveyor DownloadFile https://sourceforge.net/projects/pysolfc/files/PySolFC-Cardsets/minimal/PySolFC-Cardsets--Minimal-2.2.0.tar.xz/download -FileName cardsets.tar.xz
+    - appveyor DownloadFile https://sourceforge.net/projects/pysolfc/files/PySolFC-Cardsets/minimal/PySolFC-Cardsets--Minimal-3.0.0.tar.xz/download -FileName cardsets.tar.xz
     - 7z x cardsets.tar.xz -so | 7z x -si -ttar
-    - mv PySolFC-Cardsets--Minimal-2.2.0/cardset-* dist/pysol/data
+    - mv PySolFC-Cardsets--Minimal-3.0.0/cardset-* dist/pysol/data
     - appveyor DownloadFile https://sourceforge.net/projects/pysolfc/files/PySol-Music/PySol-Music-4.50/pysol-music-4.50.tar.xz/download -FileName music.tar.xz
     - 7z x music.tar.xz -so | 7z x -si -ttar
     - move pysol-music-4.50\data\music dist\pysol\data\music
@@ -51,7 +51,7 @@ test_script:
     # For reproducible builds:
     # See:  https://reproducible-builds.org/ .
     - SET FC_SOLVE_VER=5.20.0
-    - appveyor DownloadFile https://netix.dl.sourceforge.net/project/fc-solve/fc-solve/DO-NOT-USE--fc-solve-for-pysol/fc-solve-for-pysol--v%FC_SOLVE_VER%.zip -FileName fc-solve.zip
+    - appveyor DownloadFile https://sourceforge.net/projects/fc-solve/files/fc-solve/DO-NOT-USE--fc-solve-for-pysol/fc-solve-for-pysol--v%FC_SOLVE_VER%.zip -FileName fc-solve.zip
     - 7z x fc-solve.zip
     - move fcs-pysol dist\pysol\freecell-solver
     - 7z a -r pysol_win_dist.7z dist\pysol\

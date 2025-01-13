@@ -22,6 +22,8 @@
 # ---------------------------------------------------------------------------
 
 import time
+import tkinter
+import tkinter.font
 import traceback
 
 from pysollib.mfxutil import KwStruct, destruct, kwdefault, openURL
@@ -31,10 +33,6 @@ from pysollib.ui.tktile.tkcanvas import MfxCanvas
 from pysollib.ui.tktile.tkutil import after, after_cancel
 from pysollib.ui.tktile.tkutil import bind, unbind_destroy
 from pysollib.ui.tktile.tkutil import makeToplevel, setTransient
-
-import six
-from six.moves import tkinter
-from six.moves import tkinter_font
 
 # ************************************************************************
 # * abstract base class for the dialogs in this module
@@ -130,7 +128,7 @@ class MfxDialog:  # ex. _ToplevelDialog
 
     def altKeyEvent(self, event):
         key = event.char
-        key = six.text_type(key, 'utf-8')
+        key = str(key, 'utf-8')
         key = key.lower()
         button = self.accel_keys.get(key)
         if button is not None:
@@ -285,7 +283,7 @@ class MfxExceptionDialog(MfxMessageDialog):
                 (ex.errno, ex.strerror, repr(ex.filename))
         else:
             t = str(ex)
-        kw.text = text + six.text_type(t, errors='replace')
+        kw.text = text + str(t, errors='replace')
         MfxMessageDialog.__init__(self, parent, title, **kw.getKw())
 
 
@@ -308,7 +306,7 @@ class PysolAboutDialog(MfxMessageDialog):
                             width=kw.width)
         msg.pack(fill='both', expand=True)
 
-        font = tkinter_font.Font(parent, app.getFont('default'))
+        font = tkinter.font.Font(parent, app.getFont('default'))
         font.configure(underline=True)
         url_label = tkinter.Label(frame, text=kw.url, font=font,
                                   foreground='blue', cursor='hand2')

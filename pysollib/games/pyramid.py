@@ -442,6 +442,10 @@ class Thirteen(Pyramid):
 
 class Thirteens(Pyramid):
     RowStack_Class = Giza_Reserve
+    Foundation_Class = Pyramid_Foundation
+    Talon_Class = AutoDealTalonStack
+
+    EXTRA_PILE = False
 
     def createGame(self, rows=2, cols=5):
         # create layout
@@ -460,10 +464,12 @@ class Thirteens(Pyramid):
                 x += layout.XS
             y += layout.YS
         x, y = layout.XM, self.height-layout.YS
-        s.talon = AutoDealTalonStack(x, y, self)
+        s.talon = self.Talon_Class(x, y, self)
+        if self.EXTRA_PILE:
+            s.reserves.append(self.RowStack_Class(x + layout.XS, y, self))
         layout.createText(s.talon, 'n')
         x, y = self.width-layout.XS, self.height-layout.YS
-        s.foundations.append(Pyramid_Foundation(x, y, self,
+        s.foundations.append(self.Foundation_Class(x, y, self,
                              suit=ANY_SUIT, dir=0, base_rank=ANY_RANK,
                              max_move=0, max_cards=52))
         layout.createText(s.foundations[0], 'n')
@@ -484,6 +490,7 @@ class Thirteens(Pyramid):
 
 # ************************************************************************
 # * Elevens
+# * Elevens Too
 # * Suit Elevens
 # ************************************************************************
 
@@ -531,8 +538,11 @@ class Elevens(Pyramid):
 
     RowStack_Class = Elevens_RowStack
     Reserve_Class = Elevens_Reserve
+    Foundation_Class = AbstractFoundationStack
+    Talon_Class = AutoDealTalonStack
+    Waste_Class = None
 
-    def createGame(self, rows=3, cols=3, reserves=3, texts=False):
+    def createGame(self, rows=3, cols=3, reserves=3, maxpiles=-1, texts=False):
 
         layout, s = Layout(self), self.s
 
@@ -545,18 +555,27 @@ class Elevens(Pyramid):
             layout.YM + (rows + rp) * layout.YS)
 
         x, y = self.width-layout.XS, layout.YM
-        s.talon = AutoDealTalonStack(x, y, self)
-        layout.createText(s.talon, 's')
+        s.talon = self.Talon_Class(x, y, self)
+        if self.Waste_Class is None:
+            layout.createText(s.talon, 's')
+        else:
+            layout.createText(s.talon, 'nw')
+            y += layout.YS
+            s.waste = self.Waste_Class(x, y, self)
         x, y = self.width-layout.XS, self.height-layout.YS
-        s.foundations.append(AbstractFoundationStack(x, y, self,
+        s.foundations.append(self.Foundation_Class(x, y, self,
                              suit=ANY_SUIT, max_accept=0,
-                             max_move=0, max_cards=52))
+                             max_move=0, max_cards=52 * self.gameinfo.decks))
         layout.createText(s.foundations[0], 'n')
         y = layout.YM
+        piles = 0
         for i in range(rows):
             x = layout.XM
             for j in range(cols):
+                if 0 < maxpiles <= piles:
+                    break
                 s.rows.append(self.RowStack_Class(x, y, self, max_accept=1))
+                piles += 1
                 x += layout.XS
             y += layout.YS
         x, y = layout.XM, self.height-layout.YS
@@ -649,6 +668,153 @@ class SuitElevens(Elevens):
 
 
 # ************************************************************************
+# * Tens
+# * Nines
+# ************************************************************************
+
+class Tens_RowStack(Elevens_RowStack):
+    ACCEPTED_SUM = 8
+
+
+class Tens_Reserve(ReserveStack):
+    ACCEPTED_CARDS = (9, JACK, QUEEN, KING)
+
+    def acceptsCards(self, from_stack, cards):
+        if not ReserveStack.acceptsCards(self, from_stack, cards):
+            return False
+        c = cards[0]
+        if c.rank not in self.ACCEPTED_CARDS:
+            return False
+        for s in self.game.s.reserves:
+            if s.cards and s.cards[0].rank != c.rank:
+                return False
+        return True
+
+
+class Tens(ElevensToo):
+    RowStack_Class = Tens_RowStack
+    Reserve_Class = Tens_Reserve
+
+    def createGame(self):
+        Elevens.createGame(self, rows=2, cols=7, maxpiles=13, reserves=4)
+
+
+class Nines_RowStack(Elevens_RowStack):
+    ACCEPTED_SUM = 7
+
+    def clickHandler(self, event):
+        if not self.cards:
+            return 0
+        c = self.cards[-1]
+        if c.face_up and c.rank == 8 and not self.basicIsBlocked():
+            self.game.playSample("autodrop", priority=20)
+            self.playMoveMove(1, self.game.s.foundations[0], sound=False)
+            return 1
+        return OpenStack.clickHandler(self, event)
+
+
+class Nines_Reserve(Tens_Reserve):
+    def acceptsCards(self, from_stack, cards):
+        if not ReserveStack.acceptsCards(self, from_stack, cards):
+            return False
+        c = cards[0]
+        if c.rank not in self.ACCEPTED_CARDS:
+            return False
+        for s in self.game.s.reserves:
+            if s.cards and s.cards[0].rank == c.rank:
+                return False
+        return True
+
+
+class Nines_Foundation(AbstractFoundationStack):
+    def acceptsCards(self, from_stack, cards):
+        if cards[0].rank == 8:
+            return True
+        # We accept any nine. Pairs will get delivered by _dropPairMove.
+        return AbstractFoundationStack.acceptsCards(self, from_stack, cards)
+
+
+class Nines(Tens):
+    RowStack_Class = Nines_RowStack
+    Reserve_Class = Nines_Reserve
+    Foundation_Class = Nines_Foundation
+
+    def createGame(self):
+        Elevens.createGame(self, rows=3, cols=3, reserves=4)
+
+
+# ************************************************************************
+# * The Lucky Number
+# ************************************************************************
+
+class TheLuckyNumber_Talon(WasteTalonStack):
+
+    def canDealCards(self):
+        for s in self.game.s.reserves:
+            if s.cards:
+                return False
+        return WasteTalonStack.canDealCards(self)
+
+
+class TheLuckyNumber_Waste(WasteStack):
+    def moveMove(self, ncards, to_stack, frames=-1, shadow=-1):
+        if to_stack in self.game.s.rows and len(to_stack.cards) > 0:
+            self._dropPairMove(ncards, to_stack, frames=-1, shadow=shadow)
+        else:
+            self.game.moveMove(ncards, self, to_stack,
+                               frames=frames, shadow=shadow)
+            self.fillStack()
+
+    def _dropPairMove(self, n, other_stack, frames=-1, shadow=-1):
+        if not self.game.demo:
+            self.game.playSample("droppair", priority=200)
+        if not (n == 1 and other_stack.cards):
+            return
+        old_state = self.game.enterState(self.game.S_FILL)
+        f = self.game.s.foundations[0]
+        self.game.moveMove(n, self, f, frames=frames, shadow=shadow)
+        self.game.moveMove(n, other_stack, f, frames=frames, shadow=shadow)
+        self.game.leaveState(old_state)
+        other_stack.fillStack()
+
+
+class TheLuckyNumber(Elevens):
+    Talon_Class = StackWrapper(TheLuckyNumber_Talon, max_rounds=1)
+    Waste_Class = TheLuckyNumber_Waste
+
+    def createGame(self):
+        Elevens.createGame(self, cols=4)
+
+    def startGame(self):
+        for i in range(3):
+            self.s.talon.dealRow(frames=0)
+        self._startAndDealRow()
+        self.s.talon.dealCards()
+
+    def fillStack(self, stack):
+        old_state = self.enterState(self.S_FILL)
+        reserves_ncards = 0
+        for s in self.s.reserves:
+            if s.cards:
+                reserves_ncards += 1
+        if reserves_ncards == 0:
+            for r in self.s.rows:
+                if not r.cards:
+                    if self.s.waste.cards:
+                        self.s.waste.moveMove(1, r)
+                    elif self.s.talon.cards:
+                        self.s.talon.flipMove()
+                        self.s.talon.moveMove(1, r)
+        elif reserves_ncards == len(self.s.reserves):
+            if not self.demo:
+                self.playSample("droppair", priority=200)
+            for s in self.s.reserves:
+                s.moveMove(1, self.s.foundations[0], frames=4)
+            self.fillStack(stack)
+        self.leaveState(old_state)
+
+
+# ************************************************************************
 # * Fifteens
 # ************************************************************************
 
@@ -717,6 +883,98 @@ class Fifteens(Elevens):
 
 
 # ************************************************************************
+# * Eighteens
+# ************************************************************************
+
+class Eighteens_RowStack(Elevens_RowStack):
+
+    def acceptsCards(self, from_stack, cards):
+        return False
+
+    def clickHandler(self, event):
+        game = self.game
+        if not self.cards:
+            return False
+        if self.cards[0].rank == 0:
+            game.playSample("autodrop", priority=20)
+            self.playMoveMove(1, game.s.foundations[0], sound=False)
+            self.fillStack()
+            return True
+        elif self.game.s.reserves[0].acceptsCards(self, self.cards):
+            return self.playMoveMove(1, self.game.s.reserves[0])
+
+        return False
+
+
+class Eighteens_Reserve(ReserveStack):
+    def acceptsCards(self, from_stack, cards):
+        sum = 0
+        numcards = 0
+        if len(self.cards) > 3:
+            return False
+        for c in self.cards:
+            if ((c.rank > 9 and cards[0].rank > 9)
+                    or (c.rank == cards[0].rank)):
+                return False
+            if cards[0].rank <= 9 and c.rank <= 9:
+                sum += c.rank + 1
+                numcards += 1
+        newsum = sum + cards[0].rank + 1
+        if newsum > 18 or (numcards == 2 and newsum < 18):
+            return False
+        return True
+
+    def updateText(self):
+        if self.game.preview > 1 or self.texts.misc is None:
+            return
+        t = ''
+        if self.cards:
+            t = 0
+            for c in self.cards:
+                if c.rank < JACK:
+                    t += c.rank + 1
+        self.texts.misc.config(text=t)
+
+
+class Eighteens_Foundation(AbstractFoundationStack):
+    def acceptsCards(self, from_stack, cards):
+        if not AbstractFoundationStack.acceptsCards(self, from_stack, cards):
+            return False
+        # We accept any aces.
+        return cards[0].rank == 0
+
+
+class Eighteens(Fifteens):
+    RowStack_Class = Eighteens_RowStack
+    Reserve_Class = StackWrapper(Eighteens_Reserve, max_cards=4)
+    Foundation_Class = StackWrapper(Eighteens_Foundation, max_accept=1)
+
+    def createGame(self):
+        Elevens.createGame(self, rows=3, cols=4, reserves=1, texts=True)
+
+    def fillStack(self, stack=None):
+        old_state = self.enterState(self.S_FILL)
+        reserve = self.s.reserves[0]
+        if len(reserve.cards) == 0:
+            for r in self.s.rows:
+                if not r.cards and self.s.talon.cards:
+                    self.s.talon.flipMove()
+                    self.s.talon.moveMove(1, r)
+        else:
+            facecards = 0
+            reserve_sum = 0
+            for c in reserve.cards:
+                if c.rank < JACK:
+                    reserve_sum += c.rank + 1
+                else:
+                    facecards += 1
+            if (reserve_sum == 18 and facecards == 1
+                    and len(reserve.cards) == 4):
+                self._dropReserve()
+        self.leaveState(old_state)
+
+
+# ************************************************************************
 # * Neptune
 # ************************************************************************
 
@@ -743,6 +1001,98 @@ class Neptune(Thirteens):
 
     def isGameWon(self):
         return len(self.s.talon.cards) == 0
+
+
+# ************************************************************************
+# * Eight Cards
+# ************************************************************************
+
+class EightCards_RowStack(Elevens_RowStack):
+
+    def acceptsCards(self, from_stack, cards):
+        if from_stack is self or not self.cards or len(cards) != 1:
+            return False
+        c = self.cards[-1]
+        return (c.face_up and cards[0].face_up and
+                (cards[0].rank + c.rank == 9))
+
+    def clickHandler(self, event):
+        game = self.game
+        if self.cards and self.cards[0].rank > 9:
+            game.playSample("autodrop", priority=20)
+            self.playMoveMove(1, game.s.foundations[0], sound=False)
+            self.fillStack()
+            return True
+
+        return False
+
+    # second selection to reserves stack: should also move the
+    # pair - not ?
+    def moveMove(self, ncards, to_stack, frames=-1, shadow=-1):
+        if to_stack in self.game.s.rows + self.game.s.reserves:
+            self._dropPairMove(ncards, to_stack, frames=-1, shadow=shadow)
+        else:
+            self.game.moveMove(ncards, self, to_stack,
+                               frames=frames, shadow=shadow)
+            self.fillStack()
+
+
+class EightCards_Foundation(AbstractFoundationStack):
+    def acceptsCards(self, from_stack, cards):
+        if not AbstractFoundationStack.acceptsCards(self, from_stack, cards):
+            return False
+        # We accept any picture cards.
+        return cards[0].rank > 9
+
+
+class EightCards_Talon(AutoDealTalonStack):
+    def canDealCards(self):
+        if len(self.cards) < 1: return False    # noqa E701
+        return self.game.draws > 0 and len(self.game.s.reserves[0].cards) < 1
+
+    def dealCards(self, sound=False):
+        self.game.playSample("dealwaste")
+        self.flipMove()
+        self.moveMove(1, self.game.s.reserves[0])
+        old_state = self.game.enterState(self.game.S_FILL)
+        self.game.saveStateMove(2 | 16)  # for undo
+        self.game.draws -= 1
+        self.game.saveStateMove(1 | 16)  # for redo
+        self.game.leaveState(old_state)
+
+
+class EightCards(Thirteens):
+    RowStack_Class = EightCards_RowStack
+    Foundation_Class = EightCards_Foundation
+    Talon_Class = EightCards_Talon
+
+    EXTRA_PILE = True
+
+    draws = 2
+
+    def createGame(self):
+        Thirteens.createGame(self, rows=2, cols=4)
+
+    def startGame(self):
+        self._startAndDealRow()
+        self.draws = 2
+
+    def _restoreGameHook(self, game):
+        self.draws = game.loadinfo.draws
+
+    def _loadGameHook(self, p):
+        self.loadinfo.addattr(draws=p.load())
+
+    def _saveGameHook(self, p):
+        p.dump(self.draws)
+
+    def setState(self, state):
+        # restore saved vars (from undo/redo)
+        self.draws = state[0]
+
+    def getState(self):
+        # save vars (for undo/redo)
+        return [self.draws]
 
 
 # ************************************************************************
@@ -980,35 +1330,47 @@ class Apophis_RowStack(Pyramid_RowStack):
 class Apophis(Pharaohs):
     Hint_Class = Apophis_Hint
     RowStack_Class = Apophis_RowStack
+    Waste_Class = Pyramid_Waste
+    Foundation_Class = Pyramid_Foundation
 
     PYRAMID_Y_FACTOR = 2
+    INVERT = False
+    MAX_ROUNDS = 3
 
     def createGame(self):
         # create layout
         layout, s = Layout(self), self.s
 
         # set window
-        w = layout.XM + 9*layout.XS
-        h = layout.YM + 4*layout.YS
+        cols = 9
+        if self.INVERT:
+            cols = 10
+        w = layout.XM + cols * layout.XS
+        h = layout.YM + 4 * layout.YS
         self.setSize(w, h)
 
         # create stacks
         x, y = layout.XM+1.5*layout.XS, layout.YM
-        s.rows = self._createPyramid(layout, x, y, 7)
+        if self.INVERT:
+            s.rows = self._createInvertedPyramid(layout, x, y, 7)
+        else:
+            s.rows = self._createPyramid(layout, x, y, 7)
 
         x, y = layout.XM, layout.YM
-        s.talon = DealReserveRedealTalonStack(x, y, self, max_rounds=3)
+        s.talon = DealReserveRedealTalonStack(x, y, self,
+                                              max_rounds=self.MAX_ROUNDS)
         layout.createText(s.talon, 'se')
-        layout.createRoundText(s.talon, 'ne')
+        if s.talon.max_rounds > 1:
+            layout.createRoundText(s.talon, 'ne')
 
         y += layout.YS
         for i in range(3):
-            stack = Pyramid_Waste(x, y, self, max_accept=1)
+            stack = self.Waste_Class(x, y, self, max_accept=1)
             s.reserves.append(stack)
             layout.createText(stack, 'se')
             y += layout.YS
         x, y = self.width - layout.XS, layout.YM
-        s.foundations.append(Pyramid_Foundation(x, y, self,
+        s.foundations.append(self.Foundation_Class(x, y, self,
                              suit=ANY_SUIT, dir=0, base_rank=ANY_RANK,
                              max_move=0, max_cards=52))
         layout.createText(s.foundations[0], 'nw')
@@ -1023,6 +1385,43 @@ class Apophis(Pharaohs):
 
     def shallHighlightMatch(self, stack1, card1, stack2, card2):
         return card1.rank + card2.rank == 11
+
+
+# ************************************************************************
+# * Eleven Triangle
+# ************************************************************************
+
+class ElevenTriangle_StackMethods():
+    def acceptsCards(self, from_stack, cards):
+        if self.basicIsBlocked():
+            return False
+        if from_stack is self or not self.cards or len(cards) != 1:
+            return False
+        c = self.cards[-1]
+        return c.face_up and cards[0].face_up and \
+            (cards[0].rank + c.rank == 9 or (cards[0].rank > 9 and
+                                             cards[0].rank == c.rank))
+
+    def _dropKingClickHandler(self, event):
+        return 0
+
+
+class ElevenTriangle_RowStack(ElevenTriangle_StackMethods, Pyramid_RowStack):
+    pass
+
+
+class ElevenTriangle_Waste(ElevenTriangle_StackMethods, Pyramid_Waste):
+    pass
+
+
+class ElevenTriangle(Apophis):
+    RowStack_Class = ElevenTriangle_RowStack
+    Waste_Class = ElevenTriangle_Waste
+    Foundation_Class = PyramidDozen_Foundation
+
+    INVERT = True
+    MAX_ROUNDS = 1
+
 
 # ************************************************************************
 # * Cheops
@@ -1463,7 +1862,8 @@ registerGame(GameInfo(593, Thirteens, "Thirteens",
                       GI.GT_PAIRING_TYPE, 1, 0, GI.SL_LUCK,
                       altnames=('Helsinki', "Good Thirteen")))
 registerGame(GameInfo(594, Elevens, "Elevens",
-                      GI.GT_PAIRING_TYPE, 1, 0, GI.SL_LUCK))
+                      GI.GT_PAIRING_TYPE, 1, 0, GI.SL_LUCK,
+                      altnames=('Eleven Away',)))
 registerGame(GameInfo(595, ElevensToo, "Elevens Too",
                       GI.GT_PAIRING_TYPE, 1, 0, GI.SL_LUCK))
 registerGame(GameInfo(596, SuitElevens, "Suit Elevens",
@@ -1512,3 +1912,18 @@ registerGame(GameInfo(846, PyramidDozen, "Pyramid Dozen",
 registerGame(GameInfo(854, Neptune, "Neptune",
                       GI.GT_PAIRING_TYPE, 1, 0, GI.SL_BALANCED,
                       altnames=('Mixtures',)))
+registerGame(GameInfo(916, Tens, "Tens",
+                      GI.GT_PAIRING_TYPE, 1, 0, GI.SL_LUCK,
+                      altnames=('Take Ten',)))
+registerGame(GameInfo(929, EightCards, "Eight Cards",
+                      GI.GT_PAIRING_TYPE, 1, 0, GI.SL_LUCK,
+                      altnames=('Acht Karten',)))
+registerGame(GameInfo(937, TheLuckyNumber, "The Lucky Number",
+                      GI.GT_PAIRING_TYPE, 2, 0, GI.SL_LUCK))
+registerGame(GameInfo(950, Eighteens, "Eighteens",
+                      GI.GT_PAIRING_TYPE, 2, 0, GI.SL_MOSTLY_LUCK,
+                      altnames=("Steel Wheels",)))
+registerGame(GameInfo(961, Nines, "Nines",
+                      GI.GT_PAIRING_TYPE, 1, 0, GI.SL_LUCK))
+registerGame(GameInfo(969, ElevenTriangle, "Eleven Triangle",
+                      GI.GT_PAIRING_TYPE, 1, 0, GI.SL_MOSTLY_LUCK))

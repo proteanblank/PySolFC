@@ -21,7 +21,6 @@
 #
 # ---------------------------------------------------------------------------##
 
-import locale
 import os
 
 from pysollib.gamedb import GI
@@ -44,7 +43,11 @@ from pysollib.pysoltk import PysolMenubarTk, PysolToolbarTk
 from pysollib.pysoltk import Status_StatsDialog, Top_StatsDialog
 from pysollib.pysoltk import TimeoutsDialog
 from pysollib.pysoltk import create_find_card_dialog
+from pysollib.pysoltk import create_full_picture_dialog
 from pysollib.pysoltk import create_solver_dialog
+from pysollib.pysoltk import raise_find_card_dialog
+from pysollib.pysoltk import raise_full_picture_dialog
+from pysollib.pysoltk import raise_solver_dialog
 from pysollib.settings import DEBUG
 from pysollib.settings import PACKAGE_URL, TITLE
 from pysollib.settings import TOP_SIZE
@@ -83,6 +86,7 @@ class PysolMenubar(PysolMenubarTk):
             highlight_piles=0,
             autoscale=0,
             find_card=0,
+            full_picture=0,
             rules=0,
             pause=0,
             custom_game=0,
@@ -164,6 +168,8 @@ class PysolMenubar(PysolMenubarTk):
             ms.autoscale = 1
         if game.canFindCard():
             ms.find_card = 1
+        if game.canShowFullPicture():
+            ms.full_picture = 1
         if game.app.getGameRulesFilename(game.id):  # note: this may return ""
             ms.rules = 1
         if not game.finished:
@@ -206,6 +212,7 @@ class PysolMenubar(PysolMenubarTk):
         self.setMenuState(ms.hint, "assist.hint")
         self.setMenuState(ms.highlight_piles, "assist.highlightpiles")
         self.setMenuState(ms.find_card, "assist.findcard")
+        self.setMenuState(ms.full_picture, "assist.showfullpicture")
         self.setMenuState(ms.demo, "assist.demo")
         self.setMenuState(ms.demo, "assist.demoallgames")
         # Options menu
@@ -353,9 +360,11 @@ class PysolMenubar(PysolMenubarTk):
             if 1 and gi.id == self.game.id:
                 # force change of game
                 continue
-            if 1 and gi.category != self.game.gameinfo.category:
+            # Not sure why this check to not change game category existed,
+            # but commented, as it doesn't make sense.
+            # if 1 and gi.category != self.game.gameinfo.category:
                 # don't change game category
-                continue
+                # continue
             won, lost = self.app.stats.getStats(self.app.opt.player, gi.id)
             if type == 'all':
                 games.append(gi.id)
@@ -527,9 +536,16 @@ class PysolMenubar(PysolMenubarTk):
         if self.game.canFindCard():
             create_find_card_dialog(self.game.top, self.game,
                                     self.app.getFindCardImagesDir())
+            raise_find_card_dialog(self.game)
+
+    def mFullPicture(self, *args):
+        if self.game.canShowFullPicture():
+            create_full_picture_dialog(self.game.top, self.game)
+            raise_full_picture_dialog(self.game)
 
     def mSolver(self, *args):
         create_solver_dialog(self.game.top, self.app)
+        raise_solver_dialog(self.game)
 
     def mEditGameComment(self, *args):
         if self._cancelDrag(break_pause=False):
@@ -539,7 +555,8 @@ class PysolMenubar(PysolMenubarTk):
               'id': game.getGameNumber(format=1)}
         cc = _("Comments for %(game)s %(id)s:\n\n") % kw
         c = game.gsaveinfo.comment or cc
-        d = EditTextDialog(game.top, _("Comments for %(id)s") % kw, text=c)
+        d = EditTextDialog(game.top, _("Comments for %(id)s") % kw, text=c,
+                           resizable=True)
         if d.status == 0 and d.button == 0:
             text = d.text
             if text.strip() == cc.strip():
@@ -551,20 +568,17 @@ class PysolMenubar(PysolMenubarTk):
                 fn = os.path.normpath(fn)
                 if not text.endswith(os.linesep):
                     text += os.linesep
-                enc = locale.getpreferredencoding()
                 try:
                     with open(fn, 'at') as fh:
-                        fh.write(text.encode(enc, 'replace'))
+                        fh.write(d.text)
                 except Exception as err:
-                    d = MfxExceptionDialog(
-                        self.top, err,
-                        text=_("Error while writing to file"))
+                    MfxExceptionDialog(
+                        self.top, err, text=_("Error while writing to file"))
                 else:
-                    d = MfxMessageDialog(
+                    MfxMessageDialog(
                         self.top, title=_("%s Info") % TITLE, bitmap="info",
                         text=_("Comments were appended to\n\n%(filename)s")
                         % {'filename': fn})
-        self._setCommentMenu(bool(game.gsaveinfo.comment))
 
     #
     # Game menu - statistics
@@ -597,6 +611,7 @@ class PysolMenubar(PysolMenubarTk):
         mode = kw.get("mode", 101)
         demo = 0
         gameid = None
+        gamenum = None
         while mode > 0:
             if mode > 1000:
                 demo = not demo
@@ -630,11 +645,17 @@ class PysolMenubar(PysolMenubarTk):
             elif mode == 103:
                 header = (_("%(app)s Demo Full log") if demo
                           else _("Full log for %(player)s")) % transkw
-                d = FullLog_StatsDialog(self.top, header, self.app, player)
+                d = FullLog_StatsDialog(self.top, header, self.app, player,
+                                        resizable=True)
+                gameid = d.selected_game
+                gamenum = d.selected_game_num
             elif mode == 104:
                 header = (_("%(app)s Demo Session log") if demo
                           else _("Session log for %(player)s")) % transkw
-                d = SessionLog_StatsDialog(self.top, header, self.app, player)
+                d = SessionLog_StatsDialog(self.top, header, self.app, player,
+                                           resizable=True)
+                gameid = d.selected_game
+                gamenum = d.selected_game_num
             elif mode == 105:
                 # TRANSLATORS: eg. top 10 or top 5 results for a certain game
                 header = (_("%(app)s Demo Top %(tops)d for %(game)s") if demo
@@ -689,8 +710,12 @@ class PysolMenubar(PysolMenubarTk):
                     self.game.quitGame(gameid)
             elif mode == 402:
                 # start a new game with a gameid / gamenumber
-                # TODO
-                pass
+                if (gameid and gamenum and
+                        (gameid != self.game.id or
+                         gamenum != self.game.getGameNumber(format=0))):
+                    self.game.endGame()
+                    self.game.quitGame(gameid,
+                                       random=construct_random(gamenum))
             else:
                 print_err("stats problem: %s %s %s" % (mode, demo, player))
                 pass

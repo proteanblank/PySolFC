@@ -21,11 +21,11 @@
 #
 # ---------------------------------------------------------------------------
 
+import tkinter
+from tkinter.colorchooser import askcolor
+
 from pysollib.mfxutil import KwStruct
 from pysollib.mygettext import _
-
-from six.moves import tkinter
-from six.moves.tkinter_colorchooser import askcolor
 
 
 class BaseColorsDialog:

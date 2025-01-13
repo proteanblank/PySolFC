@@ -35,9 +35,6 @@ from pysollib.mygettext import myGettext
 from pysollib.pysoltk import STATUSBAR_ITEMS, TOOLBAR_BUTTONS, TOOLKIT
 from pysollib.resource import CSI
 
-
-import six
-
 import validate
 
 # ************************************************************************
@@ -95,9 +92,17 @@ shade = boolean
 shrink_face_down = boolean
 shade_filled_stacks = boolean
 demo_logo = boolean
+demo_logo_style = string
+pause_text_style = string
+redeal_icon_style = string
+dialog_icon_style = string
+tree_icon_style = string
+button_icon_style = string
 tile_theme = string
 default_tile_theme = string
 toolbar = integer(0, 4)
+toolbar_land = integer(0, 4)
+toolbar_port = integer(0, 4)
 toolbar_style = string
 toolbar_relief = string
 toolbar_compound = string
@@ -107,6 +112,7 @@ num_recent_games = integer(10, 100)
 last_gameid = integer
 game_holded = integer
 wm_maximized = boolean
+wm_fullscreen = boolean
 splashscreen = boolean
 date_format = string
 mouse_type = string
@@ -117,6 +123,7 @@ use_cardset_bottoms = boolean
 dragcursor = boolean
 save_games_geometry = boolean
 game_geometry = int_list(min=2, max=2)
+topmost_dialogs = boolean
 sound = boolean
 sound_mode = integer(0, 1)
 sound_sample_volume = integer(0, 128)
@@ -137,6 +144,7 @@ solver_iterations_output_step = integer
 solver_preset = string
 display_win_message = boolean
 language = string
+table_zoom = list
 
 [sound_samples]
 move = boolean
@@ -202,6 +210,15 @@ highlight_piles = float(0.2, 9.9)
 8 = string_list(min=2, max=2)
 9 = string_list(min=2, max=2)
 10 = string_list(min=2, max=2)
+11_3 = string_list(min=2, max=2)
+11_4 = string_list(min=2, max=2)
+11_5 = string_list(min=2, max=2)
+11_6 = string_list(min=2, max=2)
+11_7 = string_list(min=2, max=2)
+11_8 = string_list(min=2, max=2)
+11_9 = string_list(min=2, max=2)
+11_10 = string_list(min=2, max=2)
+12 = string_list(min=2, max=2)
 scale_cards = boolean
 scale_x = float
 scale_y = float
@@ -249,9 +266,17 @@ class Options:
         ('shrink_face_down', 'bool'),
         ('shade_filled_stacks', 'bool'),
         ('demo_logo', 'bool'),
+        ('demo_logo_style', 'str'),
+        ('pause_text_style', 'str'),
+        ('redeal_icon_style', 'str'),
+        ('dialog_icon_style', 'str'),
+        ('tree_icon_style', 'str'),
+        ('button_icon_style', 'str'),
         ('tile_theme', 'str'),
         ('default_tile_theme', 'str'),
         ('toolbar', 'int'),
+        ('toolbar_land', 'int'),
+        ('toolbar_port', 'int'),
         ('toolbar_style', 'str'),
         ('toolbar_relief', 'str'),
         ('toolbar_compound', 'str'),
@@ -265,6 +290,7 @@ class Options:
         ('last_gameid', 'int'),
         ('game_holded', 'int'),
         ('wm_maximized', 'bool'),
+        ('wm_fullscreen', 'bool'),
         ('splashscreen', 'bool'),
         ('date_format', 'str'),
         ('mouse_type', 'str'),
@@ -275,6 +301,7 @@ class Options:
         # ('save_cardsets', 'bool'),
         ('dragcursor', 'bool'),
         ('save_games_geometry', 'bool'),
+        ('topmost_dialogs', 'bool'),
         ('sound', 'bool'),
         ('sound_mode', 'int'),
         ('sound_sample_volume', 'int'),
@@ -298,6 +325,9 @@ class Options:
         # ('favorite_gameid', 'list'),
         ('display_win_message', 'bool'),
         ('language', 'str'),
+        # ('table_zoom', 'list'),
+        ('fontscale', 'str'),
+        # ('fontsizefactor', 'float'),
         ]
 
     def __init__(self):
@@ -348,12 +378,21 @@ class Options:
         self.shrink_face_down = True
         self.shade_filled_stacks = True
         self.demo_logo = True
+        self.demo_logo_style = 'komika'
+        self.pause_text_style = 'komika'
+        self.redeal_icon_style = 'modern'
+        self.dialog_icon_style = 'remix'
+        self.tree_icon_style = 'remix'
+        self.button_icon_style = 'none'
         self.tile_theme = 'default'
         self.default_tile_theme = 'default'
-        self.toolbar = 1       # 0 == hide, 1,2,3,4 == top, bottom, lef, right
+        self.toolbar = 1       # 0 == hide, 1,2,3,4 == top, bottom, left, right
+        # used with 'kivy' version in addition:
+        self.toolbar_land = 4  # (landscape)
+        self.toolbar_port = 2  # (portrait)
+        # 0 == hide,
+        # 1,2,3,4 == top, bottom, left, right
         # self.toolbar_style = 'default'
-        if TOOLKIT == 'kivy':
-            self.toolbar = 4  # 0 == hide, 1,2,3,4 == top, bottom, lef, right
         self.toolbar_style = 'remix'
         self.toolbar_relief = 'flat'
         self.toolbar_compound = 'none'  # icons only
@@ -374,12 +413,19 @@ class Options:
         self.mouse_button1 = 1
         self.mouse_button2 = 2
         self.mouse_button3 = 3
-        self.mouse_type = 'drag-n-drop'  # or 'sticky-mouse' or 'point-n-click'
+        # mouse_type:  'drag-n-drop' or 'sticky-mouse' or 'point-n-click'
+        if TOOLKIT == 'kivy':
+            self.mouse_type = 'point-n-click'
+        else:
+            self.mouse_type = 'drag-n-drop'
         self.mouse_undo = False         # use mouse for undo/redo
         self.negative_bottom = True
         self.translate_game_names = True
         self.display_win_message = True
         self.language = ''
+        self.table_zoom = [1.0, 0.0, 0.0]
+        self.fontscale = 'default'        # (kivy,  platform defaults)
+        # self.fontsizefactor = 1.0
         # sound
         self.sound = True
         self.sound_mode = 1
@@ -455,7 +501,9 @@ class Options:
         self.last_gameid = 0            # last game played
         self.game_holded = 0            # gameid or 0
         self.wm_maximized = 1
+        self.wm_fullscreen = 0
         self.save_games_geometry = False
+        self.topmost_dialogs = True
         # saved games geometry (gameid: (width, height))
         self.games_geometry = {}
         self.game_geometry = (0, 0)  # game geometry before exit
@@ -533,15 +581,17 @@ class Options:
                           top.winfo_screendepth())
         # bg
         if sd > 8:
-            self.tabletile_name = "Felt_Green.gif"  # basename
+            self.tabletile_name = "Felt Green"  # name
         else:
             self.tabletile_name = None
         # cardsets
         c = "Standard"
+        m = "Crystal Mahjongg"
         if sw < 800 or sh < 600:
             c = "2000"
         if TOOLKIT == 'kivy':
             c = "Standard"
+            m = "Gnome Mahjongg 1"
 
         # if sw > 1024 and sh > 768:
         #    c = 'Dondorf'
@@ -560,7 +610,16 @@ class Options:
                 CSI.TYPE_DASHAVATARA_GANJIFA:
                     {0: ("Dashavatara Ganjifa XL", "")},
                 CSI.TYPE_TRUMP_ONLY: {0: ("Next Matrix", "")},
-                CSI.TYPE_MATCHING: {0: ("Neo", "")}
+                CSI.TYPE_MATCHING: {0: ("Neo", "")},
+                CSI.TYPE_PUZZLE: {3: ("Dojouji Ukiyo E (3x3)", ""),
+                                  4: ("Knave of Hearts (4x4)", ""),
+                                  5: ("Victoria Falls (5x5)", ""),
+                                  6: ("Hokusai Ukiyo E (6x6)", ""),
+                                  7: ("Blaren (7x7)", ""),
+                                  8: ("Mid Winter's Eve (8x8)", ""),
+                                  9: ("The Card Players (9x9)", ""),
+                                  10: ("Players Trumps (10x10)", "")},
+                CSI.TYPE_ISHIDO: {0: ("Simple Ishido XL", "")},
             }
         else:
             self.cardset = {
@@ -568,7 +627,7 @@ class Options:
                 0:                  {0: (c, "")},
                 CSI.TYPE_FRENCH:    {0: (c, ""), 1: (c, "")},
                 CSI.TYPE_HANAFUDA:  {0: ("Kintengu", "")},
-                CSI.TYPE_MAHJONGG:  {0: ("Crystal Mahjongg", "")},
+                CSI.TYPE_MAHJONGG:  {0: (m, "")},
                 CSI.TYPE_TAROCK:    {0: ("Vienna 2K", "")},
                 CSI.TYPE_HEXADECK:  {0: ("Hex A Deck", "")},
                 CSI.TYPE_MUGHAL_GANJIFA: {0: ("Mughal Ganjifa", "")},
@@ -576,7 +635,16 @@ class Options:
                 CSI.TYPE_NAVAGRAHA_GANJIFA: {0: ("Dashavatara Ganjifa", "")},
                 CSI.TYPE_DASHAVATARA_GANJIFA: {0: ("Dashavatara Ganjifa", "")},
                 CSI.TYPE_TRUMP_ONLY: {0: ("Matrix", "")},
-                CSI.TYPE_MATCHING: {0: (c, "")}
+                CSI.TYPE_MATCHING: {0: (c, "")},
+                CSI.TYPE_PUZZLE: {3: ("Dojouji Ukiyo E (3x3)", ""),
+                                  4: ("Knave of Hearts (4x4)", ""),
+                                  5: ("Victoria Falls (5x5)", ""),
+                                  6: ("Hokusai Ukiyo E (6x6)", ""),
+                                  7: ("Blaren (7x7)", ""),
+                                  8: ("Mid Winter's Eve (8x8)", ""),
+                                  9: ("The Card Players (9x9)", ""),
+                                  10: ("Players Trumps (10x10)", "")},
+                CSI.TYPE_ISHIDO: {0: ("Simple Ishido", "")},
             }
 
     # not changeable options
@@ -605,11 +673,12 @@ class Options:
             val = getattr(self, key)
             if isinstance(val, str):
                 if sys.version_info < (3,):
-                    val = six.text_type(val, 'utf-8')
+                    val = str(val, 'utf-8')
             config['general'][key] = val
 
         config['general']['recent_gameid'] = self.recent_gameid
         config['general']['favorite_gameid'] = self.favorite_gameid
+        config['general']['table_zoom'] = self.table_zoom
         visible_buttons = [b for b in self.toolbar_vars
                            if self.toolbar_vars[b]]
         config['general']['visible_buttons'] = visible_buttons
@@ -729,8 +798,6 @@ class Options:
                     continue
                 for key, value in data.items():
                     if value is False:
-                        print_err('config file: validation error: '
-                                  'section: "%s", key: "%s"' % (section, key))
                         config[section][key] = None
 
         # general
@@ -754,6 +821,13 @@ class Options:
         if favorite_gameid is not None:
             try:
                 self.favorite_gameid = [int(i) for i in favorite_gameid]
+            except Exception:
+                traceback.print_exc()
+
+        table_zoom = self._getOption('general', 'table_zoom', 'list')
+        if table_zoom is not None:
+            try:
+                self.table_zoom = [float(i) for i in table_zoom]
             except Exception:
                 traceback.print_exc()
 

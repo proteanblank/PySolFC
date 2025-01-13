@@ -11,12 +11,12 @@ Main Authors
     * macOS package maintainer
 * [Shlomi Fish](https://www.shlomifish.org/)
     * Continued PySolFC maintenance, port to python 3, test suite (Note: he places all his changes under the Expat licence).
-* https://github.com/lufebe16
-    * Added the Kivy toolkit
+* [lufebe16](https://github.com/lufebe16)
+    * Added the Kivy toolkit and all the Android app related code and build procedures.
 * [Roderik Ploszek](https://github.com/Programator2)
     * Fixes and enhancements
 * [Joe R.](https://github.com/joeraz)
-    * Continued PySolFC maintenance and development.
+    * Many new games and continued PySolFC maintenance and development.
 
 Games contributors
 ==================
@@ -36,6 +36,7 @@ Enhancements
 
 * [ghostofiht](https://github.com/ghostofiht) - Contributed a new logo design.
 * [Trueno font](https://fontlibrary.org/en/font/trueno) under the [OFL](https://en.wikipedia.org/wiki/SIL_Open_Font_License) by [Julieta Ulanovsky](http://www.zkysky.com.ar/) - used in the logo.
+* [Remix Icon](https://remixicon.com/) - used for many icons throughout the app.
 
 Translations
 ============

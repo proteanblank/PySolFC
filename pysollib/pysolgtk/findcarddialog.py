@@ -23,7 +23,7 @@
 
 # imports
 #  import os
-#  from six.moves import tkinter
+#  import tkinter
 #  import traceback
 
 #  # PySol imports
@@ -47,6 +47,10 @@ def create_find_card_dialog(parent, game, dir):
 
 
 def connect_game_find_card_dialog(game):
+    pass
+
+
+def raise_find_card_dialog(game):
     pass
 
 

@@ -183,6 +183,21 @@ class ChineseKlondike(DoubleKlondike):
 
 
 # ************************************************************************
+# * Quadruple Klondike
+# * Quadruple Klondike by Threes
+# ************************************************************************
+
+class QuadrupleKlondike(DoubleKlondike):
+    def createGame(self):
+        DoubleKlondike.createGame(self, rows=16)
+
+
+class QuadrupleKlondikeByThrees(DoubleKlondike):
+    def createGame(self):
+        DoubleKlondike.createGame(self, rows=16, num_deal=3)
+
+
+# ************************************************************************
 # * Lady Jane
 # * Inquisitor
 # ************************************************************************
@@ -418,7 +433,7 @@ class PittTheYounger(Churchill):
 # register the game
 registerGame(GameInfo(21, DoubleKlondike, "Double Klondike",
                       GI.GT_KLONDIKE, 2, -1, GI.SL_BALANCED))
-registerGame(GameInfo(28, DoubleKlondikeByThrees, "Double Klondike by Threes",
+registerGame(GameInfo(28, DoubleKlondikeByThrees, "Double Klondike (Draw 3)",
                       GI.GT_KLONDIKE, 2, -1, GI.SL_MOSTLY_LUCK))
 registerGame(GameInfo(25, Gargantua, "Gargantua",
                       GI.GT_KLONDIKE, 2, 1, GI.SL_BALANCED,
@@ -428,12 +443,12 @@ registerGame(GameInfo(333, OpenGargantua, "Open Gargantua",
                       altnames=("Open Jumbo",)))
 registerGame(GameInfo(15, BigHarp, "Big Harp",
                       GI.GT_KLONDIKE, 2, 0, GI.SL_BALANCED,
-                      altnames=("Die grosse Harfe", "Die Pyramide",)))
+                      altnames=("Die grosse Harfe", "Die Pyramide", "Harp")))
 registerGame(GameInfo(51, Steps, "Steps",
                       GI.GT_KLONDIKE, 2, 1, GI.SL_BALANCED))
 registerGame(GameInfo(273, TripleKlondike, "Triple Klondike",
                       GI.GT_KLONDIKE, 3, -1, GI.SL_BALANCED))
-registerGame(GameInfo(274, TripleKlondikeByThrees, "Triple Klondike by Threes",
+registerGame(GameInfo(274, TripleKlondikeByThrees, "Triple Klondike (Draw 3)",
                       GI.GT_KLONDIKE, 3, -1, GI.SL_MOSTLY_LUCK))
 registerGame(GameInfo(495, LadyJane, "Lady Jane",
                       GI.GT_KLONDIKE, 2, 1, GI.SL_BALANCED))
@@ -465,3 +480,8 @@ registerGame(GameInfo(828, Churchill, "Churchill",
                       altnames=('Prime Minister')))
 registerGame(GameInfo(885, PittTheYounger, "Pitt the Younger",
                       GI.GT_GYPSY, 2, 0, GI.SL_BALANCED))
+registerGame(GameInfo(920, QuadrupleKlondike, "Quadruple Klondike",
+                      GI.GT_KLONDIKE, 4, -1, GI.SL_BALANCED))
+registerGame(GameInfo(921, QuadrupleKlondikeByThrees,
+                      "Quadruple Klondike (Draw 3)",
+                      GI.GT_KLONDIKE, 4, -1, GI.SL_BALANCED))

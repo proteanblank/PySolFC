@@ -87,6 +87,7 @@ def parse_option(argv):
     try:
         optlist, args = getopt.getopt(argv[1:], "g:i:hD:",
                                       ["deal=", "game=", "gameid=",
+                                       "random-game",
                                        "french-only",
                                        "noplugins",
                                        "nosound",
@@ -100,6 +101,7 @@ def parse_option(argv):
             "deal": None,
             "game": None,
             "gameid": None,
+            "random-game": False,
             "french-only": False,
             "noplugins": False,
             "nosound": False,
@@ -108,12 +110,14 @@ def parse_option(argv):
     for i in optlist:
         if i[0] in ("-h", "--help"):
             opts["help"] = True
-        elif i[0] in ("--deal"):
+        elif i[0] == "--deal":
             opts["deal"] = i[1]
         elif i[0] in ("-g", "--game"):
             opts["game"] = i[1]
         elif i[0] in ("-i", "--gameid"):
             opts["gameid"] = i[1]
+        elif i[0] == "--random-game":
+            opts["random-game"] = True
         elif i[0] == "--french-only":
             opts["french-only"] = True
         elif i[0] == "--noplugins":
@@ -127,11 +131,13 @@ def parse_option(argv):
     if opts["help"]:
         print(_("""Usage: %s [OPTIONS] [FILE]
   -g    --game=GAMENAME        start game GAMENAME
-  -i    --gameid=GAMEID
-        --french-only
-        --sound-mod=MOD
+  -i    --gameid=GAMEID        start game with ID GAMEID
+        --deal=DEAL            start game deal by number DEAL
+        --random-game          start a random game
+        --french-only          disable non-french games
+        --sound-mod=MOD        use a certain sound module
         --nosound              disable sound support
-        --noplugins            disable load plugins
+        --noplugins            disable loading plugins
   -h    --help                 display this help and exit
 
   FILE - file name of a saved game
@@ -179,11 +185,14 @@ def pysol_init(app, args):
     for d in (
         app.dn.config,
         app.dn.savegames,
+        app.dn.boards,
         os.path.join(app.dn.config, "music"),
         # os.path.join(app.dn.config, "screenshots"),
         os.path.join(app.dn.config, "tiles"),
         os.path.join(app.dn.config, "tiles", "stretch"),
         os.path.join(app.dn.config, "tiles", "save-aspect"),
+        os.path.join(app.dn.config, "tiles", "stretch-4k"),
+        os.path.join(app.dn.config, "tiles", "save-aspect-4k"),
         os.path.join(app.dn.config, "cardsets"),
         os.path.join(app.dn.config, "plugins"),
             ):
@@ -236,7 +245,6 @@ def pysol_init(app, args):
     GAME_DB.setCallback(progressCallback)
     import pysollib.games
     if not opts['french-only']:
-        import pysollib.games.ultra
         import pysollib.games.mahjongg
         import pysollib.games.special
         pysollib.games.special.no_use()
@@ -313,6 +321,9 @@ Please check your %(app)s installation.
                              bitmap="error", strings=(_("&Quit"),))
         return 1
 
+    if opts['random-game']:
+        app.commandline.gameid = app.getRandomGameId()
+
     # init cardsets
     app.initCardsets()
     cardset = None
@@ -324,6 +335,18 @@ Please check your %(app)s installation.
     if app.cardset_manager.len() == 0:
         fatal_no_cardsets(app)
         return 3
+    missing = app.cardset_manager.identify_missing_cardsets()
+    if len(missing) > 0:
+        error_text = \
+            _('''PySol cannot find cardsets of the following types:''')
+        error_text += "\n\n"
+        for missingtype in missing:
+            error_text += missingtype + "\n"
+        error_text += _('''
+This may make games that use those types of cardsets unplayable. Please
+ensure that your Cardsets package is up to date.''')
+        MfxMessageDialog(top, title=_("Cardset error"), text=error_text,
+                         bitmap="error")
     if not cardset:
         MfxMessageDialog(top, title=_("Cardset error"),
                          text=_('''
@@ -350,7 +373,12 @@ Cardsets package is up to date.
     app.initTiles()
     if app.opt.tabletile_name:  # and top.winfo_screendepth() > 8:
         for tile in manager.getAll():
-            if app.opt.tabletile_name == tile.basename:
+            # The basename is checked in addition to the tile name
+            # this is to support differences in the table tile format
+            # from older PySol versions.
+            if (app.opt.tabletile_name == tile.name or
+                    (os.path.splitext(app.opt.tabletile_name)[0] ==
+                     os.path.splitext(tile.basename)[0])):
                 app.tabletile_index = tile.index
                 break
 
@@ -384,18 +412,38 @@ Cardsets package is up to date.
     app.loadImages3()
     app.loadImages4()
 
-    # load cardset
-    progress = app.intro.progress
-    if not app.loadCardset(cardset, progress=progress, update=1):
-        if not cardset:
-            for cardset in app.cardset_manager.getAll():
-                progress.reset()
+    startgameid = app.opt.last_gameid
 
-                if app.loadCardset(cardset, progress=progress, update=1):
-                    break
-            else:
-                fatal_no_cardsets(app)
-                return 3
+    if app.commandline.loadgame:
+        pass
+    elif app.commandline.game is not None:
+        gameid = app.gdb.getGameByName(app.commandline.game)
+        if gameid is None:
+            print_err(_("can't find game: %(game)s") % {
+                'game': app.commandline.game})
+            sys.exit(-1)
+        else:
+            startgameid = gameid
+    elif app.commandline.gameid is not None:
+        startgameid = app.commandline.gameid
+
+    progress = app.intro.progress
+    # load cardset
+    if startgameid != app.opt.last_gameid and app.opt.game_holded == 0:
+        success = app.requestCompatibleCardsetType(startgameid,
+                                                   progress=progress)
+    else:
+        success = app.loadCardset(cardset, progress=progress, id=startgameid)
+    if not success and not cardset:
+        for cardset in app.cardset_manager.getAll():
+            progress.reset()
+
+            if app.loadCardset(cardset, progress=progress,
+                               id=startgameid):
+                break
+        else:
+            fatal_no_cardsets(app)
+            return 3
 
     # ok
     return 0
@@ -410,24 +458,9 @@ if TOOLKIT == 'kivy':
     from pysollib.kivy.LApp import LApp
     import logging
 
-    class KivyApp(LApp):
-        def __init__(self, args):
-            super(KivyApp, self).__init__()
-            self.args = args
-
-        def build(self):
-            logging.info("KivyApp: build")
-
-            self.app = app = Application()
-            app.top = self.mainWindow
-            self.startCode = pysol_init(app, self.args)
-
-            logging.info('Main: App Initialised - starting main loop')
-            return self.mainWindow
-
     def main(args=None):
         logging.basicConfig(level=logging.INFO)
-        KivyApp(args).run()
+        LApp(args).run()
 
 else:
 

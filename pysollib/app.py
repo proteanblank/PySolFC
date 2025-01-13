@@ -35,7 +35,7 @@ from pysollib.app_stat_result import GameStatResult
 from pysollib.app_statistics import Statistics
 from pysollib.cardsetparser import read_cardset_config
 from pysollib.gamedb import GAME_DB, GI, loadGame
-from pysollib.help import destroy_help_html, help_about
+from pysollib.help import destroy_help_html, help_about, raise_help_html
 from pysollib.images import Images, SubsampledImages
 from pysollib.mfxutil import Struct, destruct
 from pysollib.mfxutil import USE_PIL
@@ -53,7 +53,11 @@ from pysollib.pysoltk import PysolStatusbar
 from pysollib.pysoltk import SelectCardsetDialogWithPreview
 from pysollib.pysoltk import SelectDialogTreeData
 from pysollib.pysoltk import destroy_find_card_dialog
+from pysollib.pysoltk import destroy_full_picture_dialog
 from pysollib.pysoltk import loadImage, wm_withdraw
+from pysollib.pysoltk import raise_find_card_dialog
+from pysollib.pysoltk import raise_full_picture_dialog
+from pysollib.pysoltk import raise_solver_dialog
 from pysollib.resource import CSI, CardsetManager
 from pysollib.resource import Music, MusicManager
 from pysollib.resource import Sample, SampleManager
@@ -132,6 +136,7 @@ class Application:
             config=config,
             plugins=os.path.join(config, "plugins"),
             savegames=os.path.join(config, "savegames"),
+            boards=os.path.join(config, "boards"),
             maint=os.path.join(config, "maint"),          # debug
         )
         for k, v in self.dn.__dict__.items():
@@ -276,6 +281,7 @@ class Application:
             #
             destroy_help_html()
             destroy_find_card_dialog()
+            destroy_full_picture_dialog()
             destroy_solver_dialog()
             # update options
             self.opt.last_gameid = id_
@@ -333,6 +339,7 @@ class Application:
                     self.nextgame.loadedgame = tmpgame._loadGame(
                         self.commandline.loadgame, self)
                     self.nextgame.loadedgame.gstats.holded = 0
+                    self.nextgame.id = self.nextgame.loadedgame.id
                 except Exception:
                     traceback.print_exc()
                     self.nextgame.loadedgame = None
@@ -505,9 +512,23 @@ class Application:
             wm_withdraw(self.top)
             self.top.busyUpdate()
 
+    def wm_toggle_fullscreen(self):
+        self.opt.wm_fullscreen = not self.opt.wm_fullscreen
+        self.top.attributes("-fullscreen", self.opt.wm_fullscreen)
+        # Topmost dialogs need to be reset when toggling fullscreen.
+        self.raiseAll()
+        self.top.attributes('-topmost', False)
+
+    def raiseAll(self):
+        raise_find_card_dialog(self.game)
+        raise_full_picture_dialog(self.game)
+        raise_solver_dialog(self.game)
+        raise_help_html(self.game)
+
     def loadImages1(self):
         # load dialog images
         dirname = os.path.join("images", "logos")
+        self.gimages.logos = []
         for f in ("joker07_40_774",
                   "joker08_40_774",
                   "joker07_50_774",
@@ -515,23 +536,48 @@ class Application:
                   "joker11_100_774",
                   "joker10_100",):
             self.gimages.logos.append(self.dataloader.findImage(f, dirname))
-        # if WIN_SYSTEM == 'win32':
-        #     dirname = os.path.join('images', 'dialog', 'default')
-        # else:
-        #     dirname = os.path.join('images', 'dialog', 'bluecurve')
-        dirname = os.path.join('images', 'dialog', 'remix')
+        dirname = os.path.join('images', 'dialog', self.opt.dialog_icon_style)
         for f in ('error', 'info', 'question', 'warning'):
             fn = self.dataloader.findImage(f, dirname)
             im = loadImage(fn)
             MfxMessageDialog.img[f] = im
 
         # load button images
-        if 0 and TOOLKIT == 'tk':
-            dirname = os.path.join('images', 'buttons', 'bluecurve')
+        MfxDialog.button_img = {}
+        if TOOLKIT == 'tk' and self.opt.button_icon_style != 'none':
+            dirname = os.path.join('images', 'buttons',
+                                   self.opt.button_icon_style)
             for n, f in (
                 (_('&OK'), 'ok'),
+                (_('&Select'), 'ok'),
+                (_('&Nice'), 'ok'),
+                (_('&Enjoy'), 'ok'),
+                (_("&Great"), 'ok'),
+                (_("&Cool"), 'ok'),
+                (_("&Yeah"), 'ok'),
+                (_("&Wow"), 'ok'),
+                (_("&Oh well"), 'ok'),
+                (_("&That's life"), 'ok'),
+                (_("&Hmm"), 'ok'),
                 (_('&Cancel'), 'cancel'),
+                (_('&Close'), 'cancel'),
+                (_("&Apply"), 'apply'),
+                (_("&Start"), 'apply'),
+                (_('&New'), 'new'),
                 (_('&New game'), 'new'),
+                (_('&Back to game'), 'back'),
+                (_('&Reset...'), 'reset'),
+                (_('&Restart'), 'reset'),
+                (_('&Rules'), 'help'),
+                (_('&Info...'), 'help'),
+                (_('&Credits'), 'help'),
+                (_('&Next number'), 'next'),
+                (_('&Play'), 'next'),
+                (_('&Play this game'), 'next'),
+                (_('C&lear'), 'clear'),
+                (_('&Solid color...'), 'color'),
+                (_('&Save to file'), 'save'),
+                (_('&Statistics...'), 'statistics'),
             ):
                 fn = self.dataloader.findImage(f, dirname)
                 im = loadImage(fn)
@@ -539,16 +585,38 @@ class Application:
 
     def loadImages2(self):
         # load canvas images
-        dirname = "images"
+        dirname = os.path.join("images", "redealicons",
+                               self.opt.redeal_icon_style)
         # for f in ("noredeal", "redeal",):
+        self.gimages.redeal = []
         for f in ("stopsign", "redeal",):
             self.gimages.redeal.append(self.dataloader.findImage(f, dirname))
-        dirname = os.path.join("images", "demo")
-        for f in ("demo01", "demo02", "demo03", "demo04", "demo05",):
-            self.gimages.demo.append(self.dataloader.findImage(f, dirname))
-        dirname = os.path.join("images", "pause")
-        for f in ("pause01", "pause02", "pause03",):
-            self.gimages.pause.append(self.dataloader.findImage(f, dirname))
+        dirname = os.path.join("images", "demo", self.opt.demo_logo_style)
+        self.gimages.demo = []
+        foundall = False
+        count = 0
+        while not foundall:
+            count += 1
+            try:
+                self.gimages.demo.append(self.dataloader.findImage("demo" +
+                                                                   ("%02d" %
+                                                                    (count,)),
+                                                                   dirname))
+            except OSError:
+                foundall = True
+        dirname = os.path.join("images", "pause", self.opt.pause_text_style)
+        self.gimages.pause = []
+        foundall = False
+        count = 0
+        while not foundall:
+            count += 1
+            try:
+                self.gimages.pause.append(self.dataloader.findImage("pause" +
+                                                                    ("%02d" %
+                                                                     (count,)),
+                                                                    dirname))
+            except OSError:
+                foundall = True
         # dirname = os.path.join("images", "stats")
         # for f in ("barchart",):
         #     self.gimages.stats.append(self.dataloader.findImage(f, dirname))
@@ -556,7 +624,7 @@ class Application:
     def loadImages3(self):
         # load treeview images
         SelectDialogTreeData.img = []
-        dirname = os.path.join('images', 'tree')
+        dirname = os.path.join('images', 'tree', self.opt.tree_icon_style)
         for f in ('folder', 'openfolder', 'node', 'emptynode'):
             fn = self.dataloader.findImage(f, dirname)
             im = loadImage(fn)
@@ -616,7 +684,7 @@ class Application:
                 self.opt.colors['table'] = tile.color
                 self.opt.tabletile_name = None
             else:
-                self.opt.tabletile_name = tile.basename
+                self.opt.tabletile_name = tile.name
             self.tabletile_index = i
             self.tabletile_manager.setSelected(i)
             return True
@@ -764,11 +832,13 @@ class Application:
 
     def checkCompatibleCardsetType(self, gi, cs):
         assert gi is not None
-        assert cs is not None
+        cs_type = "None"
+        cs_subtype = "None"
         gc = gi.category
         gs = gi.subcategory
-        cs_type = cs.si.type
-        cs_subtype = cs.si.subtype
+        if cs is not None:
+            cs_type = cs.si.type
+            cs_subtype = cs.si.subtype
         t0, t1 = None, None
         if gc == GI.GC_FRENCH:
             t0 = "French"
@@ -820,6 +890,14 @@ class Application:
             t0 = "Matching"
             if cs.ncards < (gi.ncards / 2):    # not enough cards
                 t1 = t0
+        elif gc == GI.GC_PUZZLE:
+            t0 = "Puzzle"
+            if cs_type not in (CSI.TYPE_PUZZLE,) or cs_subtype != gs:
+                t1 = t0
+        elif gc == GI.GC_ISHIDO:
+            t0 = "Ishido"
+            if cs_type not in (CSI.TYPE_ISHIDO,):
+                t1 = t0
         else:
             # we should not come here
             t0 = t1 = "Unknown"
@@ -852,14 +930,14 @@ class Application:
         # ask
         return None, 0, t
 
-    def requestCompatibleCardsetType(self, id):
+    def requestCompatibleCardsetType(self, id, progress=None):
         gi = self.getGameInfo(id)
         #
         cs, cs_update_flag, t = self.getCompatibleCardset(gi, self.cardset)
         if cs is self.cardset:
             return 0
         if cs is not None:
-            self.loadCardset(cs, update=1)
+            self.loadCardset(cs, update=1, progress=progress)
             return 1
 
         self.requestCompatibleCardsetTypeDialog(self.cardset, gi, t)
@@ -867,7 +945,7 @@ class Application:
         cs = self.__selectCardsetDialog(t)
         if cs is None:
             return -1
-        self.loadCardset(cs, id=id)
+        self.loadCardset(cs, id=id, progress=progress)
         return 1
 
     def requestCompatibleCardsetTypeDialog(self, cardset, gi, t):
@@ -1206,9 +1284,10 @@ class Application:
             tile = Tile()
             tile.filename = f
             n = image_ext_re.sub("", name)
-            if os.path.split(dirname)[-1] == 'stretch':
+            subdir = os.path.split(dirname)[-1]
+            if subdir == 'stretch' or subdir == 'stretch-4k':
                 tile.stretch = 1
-            if os.path.split(dirname)[-1] == 'save-aspect':
+            if subdir == 'save-aspect' or subdir == 'save-aspect-4k':
                 tile.stretch = 1
                 tile.save_aspect = 1
             # n = re.sub("[-_]", " ", n)
@@ -1226,7 +1305,9 @@ class Application:
             self,
             ("tiles-*",
                 os.path.join("tiles", "stretch"),
-                os.path.join("tiles", "save-aspect")),
+                os.path.join("tiles", "stretch-4k"),
+                os.path.join("tiles", "save-aspect"),
+                os.path.join("tiles", "save-aspect-4k")),
             "PYSOL_TILES")
         # print dirs
         found, t = [], set()

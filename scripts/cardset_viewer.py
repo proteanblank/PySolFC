@@ -8,12 +8,11 @@
 # Arrow up/down flip through the sets
 
 import os
+import tkinter
+import tkinter.filedialog
 from glob import glob
 
 from PIL import Image, ImageTk
-
-from six.moves import tkinter
-from six.moves import tkinter_tkfiledialog as filedialog  # messagebox
 
 
 cardset_type = {
@@ -26,6 +25,9 @@ cardset_type = {
     '7': 'Navagraha Ganjifa',
     '8': 'Dashavatara Ganjifa',
     '9': 'Trump only',
+    '10': 'Matching',
+    '11': 'Puzzle',
+    '12': 'Ishido'
 }
 
 ALL_IMGS = False
@@ -172,7 +174,7 @@ def on_mousewheel(event):
 def select_dir():
     global data_dir
 
-    dialog = filedialog.Directory(root)
+    dialog = tkinter.filedialog.Directory(root)
     directory = dialog.show()
     if directory:
         data_dir = os.path.normpath(directory)

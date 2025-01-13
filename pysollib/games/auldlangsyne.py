@@ -676,12 +676,13 @@ registerGame(GameInfo(553, Scuffle, "Scuffle",
 registerGame(GameInfo(560, DoubleAcquaintance, "Double Acquaintance",
                       GI.GT_NUMERICA, 2, 2, GI.SL_BALANCED))
 registerGame(GameInfo(569, Primrose, "Primrose",
-                      GI.GT_NUMERICA | GI.GT_OPEN, 2, 8, GI.SL_BALANCED))
+                      GI.GT_NUMERICA | GI.GT_OPEN, 2, 8, GI.SL_BALANCED,
+                      altnames=("Capuchin", "As You Like It")))
 registerGame(GameInfo(636, StrategyPlus, "Strategy +",
                       GI.GT_NUMERICA, 1, 0, GI.SL_SKILL))
-registerGame(GameInfo(688, Formic, "Formic",
-                      GI.GT_NUMERICA, 1, 0, GI.SL_MOSTLY_SKILL,
-                      altnames=("Ants",)))
+registerGame(GameInfo(688, Formic, "Ants",
+                      GI.GT_GOLF, 1, 0, GI.SL_MOSTLY_SKILL,
+                      altnames=("Formic",)))
 registerGame(GameInfo(702, DoubleLine, "Double Line",
                       GI.GT_NUMERICA, 2, 0, GI.SL_BALANCED))
 registerGame(GameInfo(853, Grandfather, "Grandfather",

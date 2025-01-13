@@ -22,6 +22,7 @@
 # ---------------------------------------------------------------------------
 
 import os
+import tkinter
 
 from pysollib.mygettext import _
 from pysollib.resource import CSI
@@ -30,8 +31,6 @@ from pysollib.ui.tktile.tkcanvas import MfxCanvas, MfxCanvasGroup
 from pysollib.ui.tktile.tkcanvas import MfxCanvasImage, MfxCanvasRectangle
 from pysollib.ui.tktile.tkutil import after, after_cancel
 from pysollib.ui.tktile.tkutil import bind, makeImage, unbind_destroy
-
-from six.moves import tkinter
 
 
 LARGE_EMBLEMS_SIZE = (38, 34)
@@ -91,7 +90,7 @@ class FindCardDialog(tkinter.Toplevel):
                 s = suitletters[suit]
             else:
                 s = "z"
-            fn = os.path.join(dir, r+s+'.gif')
+            fn = os.path.join(dir, r+s+'.png')
             im = makeImage(file=fn)
             FindCardDialog.CARD_IMAGES[(self.cardsettype, rank, suit)] = im
         cim = MfxCanvasImage(canvas, x0, y0, image=im, anchor='nw')
@@ -240,6 +239,17 @@ def create_find_card_dialog(parent, game, dir):
 def connect_game_find_card_dialog(game):
     try:
         find_card_dialog.connectGame(game)
+    except Exception:
+        pass
+
+
+def raise_find_card_dialog(game):
+    try:
+        if game.app.opt.topmost_dialogs:
+            find_card_dialog.tkraise()
+            find_card_dialog.attributes("-topmost", True)
+        else:
+            find_card_dialog.attributes("-topmost", False)
     except Exception:
         pass
 

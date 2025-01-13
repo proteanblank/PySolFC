@@ -154,10 +154,11 @@ class GrandDuchessPlus(GrandDuchess):
 
 
 registerGame(GameInfo(557, GrandDuchess, "Grand Duchess",
-                      GI.GT_2DECK_TYPE, 2, 3,
+                      GI.GT_NUMERICA, 2, 3,
                       altnames=('Duchess de Luynes')))
 registerGame(GameInfo(617, Parisienne, "Parisienne",
-                      GI.GT_2DECK_TYPE, 2, 3,
-                      altnames=('La Parisienne', 'Parisian')))
+                      GI.GT_NUMERICA, 2, 3,
+                      altnames=('La Parisienne', 'Parisian',
+                                'Isle of Capri')))
 registerGame(GameInfo(618, GrandDuchessPlus, "Grand Duchess +",
-                      GI.GT_2DECK_TYPE, 2, 3))
+                      GI.GT_NUMERICA, 2, 3))

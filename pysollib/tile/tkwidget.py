@@ -24,6 +24,9 @@
 import locale
 import os
 import time
+import tkinter
+import tkinter.font
+import tkinter.ttk as ttk
 import traceback
 
 from pysollib.mfxutil import KwStruct, destruct, kwdefault, openURL
@@ -33,12 +36,6 @@ from pysollib.ui.tktile.tkcanvas import MfxCanvas
 from pysollib.ui.tktile.tkutil import after, after_cancel
 from pysollib.ui.tktile.tkutil import bind, unbind_destroy
 from pysollib.ui.tktile.tkutil import makeToplevel, setTransient
-
-import six
-from six import PY2
-from six.moves import tkinter
-from six.moves import tkinter_font
-from six.moves import tkinter_ttk as ttk
 
 # ************************************************************************
 # * abstract base class for the dialogs in this module
@@ -121,9 +118,9 @@ class MfxDialog:  # ex. _ToplevelDialog
             key = event.char
             try:
                 if os.name == 'nt':
-                    key = six.text_type(key, locale.getpreferredencoding())
+                    key = str(key, locale.getpreferredencoding())
                 else:
-                    key = six.text_type(key, 'utf-8')
+                    key = str(key, 'utf-8')
             except Exception:
                 pass
             else:
@@ -157,7 +154,7 @@ class MfxDialog:  # ex. _ToplevelDialog
             separator = ttk.Separator(self._frame)
             separator.pack(side='bottom', fill='x')
         top_frame = ttk.Frame(self._frame)
-        top_frame.pack(side='top', fill='both', expand=1)
+        top_frame.pack(side='top', fill='both', expand=True)
         return top_frame, bottom_frame
 
     def createBitmaps(self, frame, kw):
@@ -289,8 +286,6 @@ class MfxExceptionDialog(MfxMessageDialog):
                 (ex.errno, ex.strerror, repr(ex.filename))
         else:
             t = str(ex)
-        if PY2:
-            t = six.text_type(t, errors='replace')
         kw.text = text + t
         MfxMessageDialog.__init__(self, parent, title, **kw.getKw())
 
@@ -302,6 +297,7 @@ class MfxExceptionDialog(MfxMessageDialog):
 class PysolAboutDialog(MfxMessageDialog):
     def __init__(self, app, parent, title, **kw):
         self._url = kw['url']
+        self.app = app
         kw = self.initKw(kw)
         MfxDialog.__init__(self, parent, title, kw.resizable, kw.default)
         top_frame, bottom_frame = self.createFrames(kw)
@@ -316,7 +312,7 @@ class PysolAboutDialog(MfxMessageDialog):
 
         # font_name = msg.lookup('TLabel', 'font')
         font_name = 'TkDefaultFont'
-        font = tkinter_font.Font(parent, name=font_name, exists=True)
+        font = tkinter.font.Font(parent, name=font_name, exists=True)
         font = font.copy()
         font.configure(underline=True)
         url_label = ttk.Label(frame, text=kw.url, font=font,
@@ -328,11 +324,25 @@ class PysolAboutDialog(MfxMessageDialog):
             self._urlClicked
         )
         #
+
         focus = self.createButtons(bottom_frame, kw)
+
+        self.splashscreen = tkinter.BooleanVar()
+        self.splashscreen.set(app.opt.splashscreen)
+        show_on_start = ttk.Checkbutton(bottom_frame,
+                                        variable=self.splashscreen,
+                                        command=self._splashUpdate,
+                                        text=_("Show this on startup"))
+        show_on_start.grid(row=0, column=0, sticky='w',
+                           padx=1, pady=1)
+
         self.mainloop(focus, kw.timeout)
 
     def _urlClicked(self, event):
         openURL(self._url)
+
+    def _splashUpdate(self):
+        self.app.opt.splashscreen = self.splashscreen.get()
 
 
 # ************************************************************************

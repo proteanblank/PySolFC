@@ -22,6 +22,8 @@
 # ---------------------------------------------------------------------------
 
 import os
+import tkinter
+from collections import UserList
 
 from pysollib.gamedb import GI
 from pysollib.mfxutil import KwStruct, Struct, destruct
@@ -30,9 +32,6 @@ from pysollib.mygettext import _
 from pysollib.resource import CSI
 from pysollib.ui.tktile.selecttree import SelectDialogTreeData
 from pysollib.ui.tktile.tkutil import unbind_destroy
-
-from six.moves import UserList
-from six.moves import tkinter
 
 from .selecttree import SelectDialogTreeCanvas
 from .selecttree import SelectDialogTreeLeaf, SelectDialogTreeNode
@@ -250,6 +249,9 @@ class SelectGameData(SelectDialogTreeData):
                 SelectGameNode(
                     None, _("Games with Separate Decks"),
                     lambda gi: gi.si.game_flags & GI.GT_SEPARATE_DECKS),
+                SelectGameNode(None, _("Games with Jokers"),
+                               lambda gi: gi.category == GI.GC_FRENCH and
+                               gi.subcategory == GI.GS_JOKER_DECK),
                 SelectGameNode(None, _("Open Games (all cards visible)"),
                                lambda gi: gi.si.game_flags & GI.GT_OPEN),
                 SelectGameNode(None, _("Relaxed Variants"),
@@ -520,6 +522,10 @@ class SelectGameDialogWithPreview(SelectGameDialog):
             c = self.app.cardsets_cache.get(gi.category)
             if c:
                 c2 = c.get(gi.subcategory)
+            if not c2:
+                c = self.app.cardsets_cache.get(cardset.type)
+                if c:
+                    c2 = c.get(cardset.subtype)
         if c2:
             self.preview_app.images = c2[2]
         else:

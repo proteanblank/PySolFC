@@ -33,8 +33,6 @@ from pysollib.pysolrandom import construct_random
 from pysollib.settings import DEBUG, FCS_COMMAND
 from pysollib.util import KING
 
-import six
-
 FCS_VERSION = None
 
 # ************************************************************************
@@ -194,6 +192,22 @@ class AbstractHint(HintInterface):
         if self.level >= 2:
             if game.canDealCards():
                 self.addHint(self.SCORE_DEAL, 0, game.s.talon, None)
+            # A few games have multiple waste stacks.  In these games,
+            # reserves are used for the waste stacks.  This logic will
+            # handle for those games.
+            if (not game.canDealCards() and game.s.waste is not None and
+                    len(game.s.waste.cards) > 0 and len(game.s.reserves) > 0):
+                max_cards = 0
+                reserve = None
+                for r in game.s.reserves:
+                    if r.acceptsCards(game.s.waste, game.s.waste.cards):
+                        if len(r.cards) < max_cards or reserve is None:
+                            max_cards = len(r.cards)
+                            reserve = r
+
+                if reserve is not None:
+                    self.addHint(self.SCORE_DEAL, 1, game.s.waste, reserve)
+
         return self._returnHints()
 
     # subclass
@@ -819,12 +833,24 @@ class Base_Solver_Hint:
         if os.name != 'nt':
             kw['close_fds'] = True
         p = subprocess.Popen(command, **kw)
-        bytes_board = six.binary_type(board, 'utf-8')
+        bytes_board = bytes(board, 'utf-8')
         pout, perr = p.communicate(bytes_board)
         if p.returncode in (127, 1):
             # Linux and Windows return codes for "command not found" error
             raise RuntimeError('Solver exited with {}'.format(p.returncode))
         return BytesIO(pout), BytesIO(perr)
+
+    def importFile(solver, fh, s_game, self):
+        s_game.endGame()
+        s_game.random = construct_random('Custom')
+        s_game.newGame(
+            shuffle=True,
+            random=construct_random('Custom'),
+            dealer=lambda: solver.importFileHelper(fh, s_game))
+        s_game.random = construct_random('Custom')
+
+    def importFileHelper(solver, fh, s_game):
+        pass
 
 
 use_fc_solve_lib = False
@@ -870,15 +896,6 @@ class FreeCellSolver_Hint(Base_Solver_Hint):
         if b:
             self._addBoardLine(prefix + b)
         return
-
-    def importFile(solver, fh, s_game, self):
-        s_game.endGame()
-        s_game.random = construct_random('Custom')
-        s_game.newGame(
-            shuffle=True,
-            random=construct_random('Custom'),
-            dealer=lambda: solver.importFileHelper(fh, s_game))
-        s_game.random = construct_random('Custom')
 
     def importFileHelper(solver, fh, s_game):
         game = s_game.s
@@ -1015,7 +1032,7 @@ class FreeCellSolver_Hint(Base_Solver_Hint):
                 FCS_VERSION = (5, 0, 0)
             else:
                 pout, _ = self.run_solver(FCS_COMMAND + ' --version', '')
-                s = six.text_type(pout.read(), encoding='utf-8')
+                s = str(pout.read(), encoding='utf-8')
                 m = re.search(r'version ([0-9]+)\.([0-9]+)\.([0-9]+)', s)
                 if m:
                     FCS_VERSION = (int(m.group(1)), int(m.group(2)),
@@ -1079,7 +1096,7 @@ class FreeCellSolver_Hint(Base_Solver_Hint):
             states = 0
 
             for sbytes in pout:
-                s = six.text_type(sbytes, encoding='utf-8')
+                s = str(sbytes, encoding='utf-8')
                 if DEBUG >= 5:
                     print(s)
 
@@ -1124,7 +1141,7 @@ class FreeCellSolver_Hint(Base_Solver_Hint):
                 self.solver_state = 'unsolved'
         else:
             for sbytes in pout:
-                s = six.text_type(sbytes, encoding='utf-8')
+                s = str(sbytes, encoding='utf-8')
                 if DEBUG:
                     print(s)
                 if self._determineIfSolverState(s):
@@ -1202,18 +1219,101 @@ class FreeCellSolver_Hint(Base_Solver_Hint):
 class BlackHoleSolver_Hint(Base_Solver_Hint):
     BLACK_HOLE_SOLVER_COMMAND = 'black-hole-solve'
 
+    def importFileHelper(solver, fh, s_game):
+        game = s_game.s
+        stack_idx = 0
+        found_idx = 0
+
+        RANKS_S = "A23456789TJQK"
+        RANKS_RE = '(?:' + '[' + RANKS_S + ']' + '|10)'
+        SUITS_S = "CSHD"
+        SUITS_RE = '[' + SUITS_S + ']'
+        CARD_RE = r'(?:' + RANKS_RE + SUITS_RE + ')'
+        line_num = 0
+
+        def cards():
+            return game.talon.cards
+
+        def put(target, suit, rank):
+            ret = [i for i, c in enumerate(cards())
+                   if c.suit == suit and c.rank == rank]
+            if len(ret) < 1:
+                raise PySolHintLayoutImportError(
+                    "Duplicate cards in input",
+                    [solver.card2str1_(rank, suit)],
+                    line_num
+                )
+
+            ret = ret[0]
+            game.talon.cards = \
+                cards()[0:ret] + cards()[(ret+1):] + [cards()[ret]]
+            s_game.flipMove(game.talon)
+            s_game.moveMove(1, game.talon, target, frames=0)
+
+        def put_str(target, str_):
+            put(target, SUITS_S.index(str_[-1]),
+                (RANKS_S.index(str_[0]) if len(str_) == 2 else 9))
+
+        def my_find_re(RE, m, msg):
+            s = m.group(1)
+            if not re.match(r'^\s*(?:' + RE + r')?(?:\s+' + RE + r')*\s*$', s):
+                raise PySolHintLayoutImportError(
+                    msg,
+                    [],
+                    line_num
+                )
+            return re.findall(r'\b' + RE + r'\b', s)
+
+        # Based on https://stackoverflow.com/questions/8898294 - thanks!
+        def mydecode(s):
+            for encoding in "utf-8-sig", "utf-8":
+                try:
+                    return s.decode(encoding)
+                except UnicodeDecodeError:
+                    continue
+            return s.decode("latin-1")  # will always work
+
+        mytext = mydecode(fh.read())
+        for line_p in mytext.splitlines():
+            line_num += 1
+            line = line_p.rstrip('\r\n')
+            m = re.match(r'^(?:Foundations:|Founds?:)\s*(.*)', line)
+            if m:
+                for gm in my_find_re(r'(' + CARD_RE + r')', m,
+                                     "Invalid Foundations line"):
+                    put_str(game.foundations[found_idx], gm)
+                    found_idx += 1
+                continue
+            m = re.match(r'^:?\s*(.*)', line)
+            for str_ in my_find_re(r'(' + CARD_RE + r')', m,
+                                   "Invalid column text"):
+                put_str(game.rows[stack_idx], str_)
+
+            stack_idx += 1
+        if len(cards()) > 0:
+            # A bit hacky, but normally, this move would require an internal.
+            # We don't want to have to add an internal stack to all Black
+            # Hole Solver games just for the import.
+            s_game.moveMove(1, game.foundations[0], game.rows[0], frames=0)
+            s_game.moveMove(len(cards()), game.talon, game.foundations[0],
+                            frames=0)
+            s_game.moveMove(1, game.rows[0], game.foundations[0], frames=0)
+
     def calcBoardString(self):
         board = ''
         cards = self.game.s.talon.cards
-        if (len(cards) > 0):
+        if len(cards) > 0:
             board += ' '.join(['Talon:'] +
                               [self.card2str1(x) for x in reversed(cards)])
             board += '\n'
-        cards = self.game.s.foundations[0].cards
-        s = '-'
-        if (len(cards) > 0):
-            s = self.card2str1(cards[-1])
-        board += 'Foundations: ' + s + '\n'
+        board += 'Foundations:'
+        for f in self.game.s.foundations:
+            cards = f.cards
+            s = '-'
+            if len(cards) > 0:
+                s = self.card2str1(cards[-1])
+            board += ' ' + s
+        board += '\n'
 
         for s in self.game.s.rows:
             b = ''
@@ -1270,7 +1370,7 @@ class BlackHoleSolver_Hint(Base_Solver_Hint):
             pout, perr = self.run_solver(command, board)
 
             for sbytes in pout:
-                s = six.text_type(sbytes, encoding='utf-8')
+                s = str(sbytes, encoding='utf-8')
                 if DEBUG >= 5:
                     print(s)
 
@@ -1304,7 +1404,7 @@ class BlackHoleSolver_Hint(Base_Solver_Hint):
         else:
             self.solver_state = result.lower()
             for sbytes in pout:
-                s = six.text_type(sbytes, encoding='utf-8')
+                s = str(sbytes, encoding='utf-8')
                 if DEBUG:
                     print(s)
 
