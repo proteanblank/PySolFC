@@ -1053,11 +1053,19 @@ class Game:
             # calculate factor of resizing
             xf = float(vw)/iw
             yf = float(vh)/ih
-            if (self.app.opt.preserve_aspect_ratio
-                    and not self.app.opt.spread_stacks):
-                xf = yf = min(xf, yf)
+            if self.app.opt.preserve_aspect_ratio:
+                if self.app.opt.spread_stacks:
+                    # layout uses full xf, yf; images use uniform scale
+                    xf_img, yf_img = min(xf, yf), min(xf, yf)
+                else:
+                    xf = yf = min(xf, yf)
+                    xf_img, yf_img = xf, yf
+            else:
+                xf_img, yf_img = xf, yf
         else:
             xf, yf = self.app.opt.scale_x, self.app.opt.scale_y
+            xf_img, yf_img = xf, yf
+
         if (not self.app.opt.center_layout or self.app.opt.spread_stacks or
                 (self.app.opt.auto_scale and not
                  self.app.opt.preserve_aspect_ratio)):
@@ -1065,9 +1073,12 @@ class Game:
         else:
             self.center_offset = self.app.images.getCenterOffset(
                 vw, vh, iw, ih, xf, yf, self.app.opt.auto_scale)
-        if (not self.app.opt.spread_stacks or manually):
+
+        if (not self.app.opt.spread_stacks or self.app.opt.auto_scale
+                or manually):
             # images
-            self.app.images.resize(xf, yf, resample=self.app.opt.resampling)
+            self.app.images.resize(xf_img, yf_img,
+                                   resample=self.app.opt.resampling)
         # cards
         for card in self.cards:
             card.update(card.id, card.deck, card.suit, card.rank, self)

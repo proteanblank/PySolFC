@@ -1882,11 +1882,6 @@ Unsupported game for import.
             return
         auto_scale = not self.app.opt.auto_scale
 
-        # In the future, it should be possible to use both options together,
-        # but the current logic conflicts, so not allowed for now.
-        self.app.opt.spread_stacks = False
-        self.tkopt.spread_stacks.set(False)
-
         self.app.opt.auto_scale = auto_scale
         self.tkopt.auto_scale.set(auto_scale)
         self._updateCardSize()
@@ -1921,11 +1916,6 @@ Unsupported game for import.
         if self._cancelDrag(break_pause=True):
             return
         spread_stacks = not self.app.opt.spread_stacks
-
-        # In the future, it should be possible to use both options together,
-        # but the current logic conflicts, so not allowed for now.
-        self.app.opt.auto_scale = False
-        self.tkopt.auto_scale.set(False)
 
         self.app.opt.spread_stacks = spread_stacks
         self.tkopt.spread_stacks.set(spread_stacks)
