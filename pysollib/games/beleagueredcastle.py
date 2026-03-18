@@ -809,7 +809,7 @@ class CastleMount(Lightweight):
 class Palace(CastleMount):
 
     def createGame(self):
-        Lightweight.createGame(self, rows=18)
+        Lightweight.createGame(self, rows=18, playcards=28)
 
     def startGame(self):
         self.s.talon.dealRow(rows=self.s.foundations, frames=0)
