@@ -513,7 +513,7 @@ class GI:
         ("Thomas Warfield", (189, 264, 300, 320, 336, 337, 359,
                              415, 427, 458, 495, 496, 497, 508,
                              800, 814, 820, 825, 889, 911, 926,
-                             941, 966, 983)),
+                             941, 966, 983, 986)),
         ("Mary Whitmore Jones", (421, 624,)),
         ("Jan Wolter", (917, 939, 946, 963,)),
         )
@@ -607,7 +607,7 @@ class GI:
         ('fc-3.4', tuple(range(971, 981)) + tuple(range(5419, 5421)) +
          tuple(range(16683, 16686)) + tuple(range(18005, 18007)) +
          (44, 526, 5906, 22399,)),
-        ('dev', tuple(range(981, 986)) + tuple(range(16686, 16687))),
+        ('dev', tuple(range(981, 987)) + tuple(range(16686, 16687))),
     )
 
     # deprecated - the correct way is to or a GI.GT_XXX flag
