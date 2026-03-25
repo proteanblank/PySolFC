@@ -21,9 +21,8 @@
 #
 # ---------------------------------------------------------------------------
 
-import os
-
 import htmllib
+import os
 import sys
 import traceback
 
