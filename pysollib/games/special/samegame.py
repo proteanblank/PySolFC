@@ -62,7 +62,7 @@ class Samegame_Foundation(AbstractFoundationStack):
         return 1
 
     def canSelect(self):
-        return False # Invisible, off-screen, unselectable
+        return False  # Invisible, off-screen, unselectable
 
 
 class Samegame_RowStack(OpenStack):
