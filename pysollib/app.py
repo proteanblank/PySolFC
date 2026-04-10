@@ -955,6 +955,15 @@ class Application:
         return 1
 
     def requestCompatibleCardsetTypeDialog(self, cardset, gi, t):
+
+        subcategoryLabel = ''
+        if self.isSubcategoryRelevant(gi):
+            subcategoryLabel = ("(%s) ") % self.getSubcategoryName(gi)
+
+        cardCountLabel = ''
+        if self.isCardCountRelevant(gi):
+            cardCountLabel = _("(with %d or more cards)") % gi.ncards
+
         MfxMessageDialog(
             self.top, title=_("Incompatible cardset"),
             bitmap="warning",
@@ -962,9 +971,29 @@ class Application:
         is not compatible with the game
         %(game)s
 
-        Please select a %(correct_type)s type cardset.
+        Please select a %(correct_type)s %(subcategory)stype cardset.
+        %(cardcount)s
         ''') % {'cardset': cardset.name, 'game': gi.name,
-                'correct_type': t[0]}, strings=(_("&OK"),), default=0)
+                'correct_type': t[0], 'subcategory': subcategoryLabel,
+                'cardcount': cardCountLabel},
+            strings=(_("&OK"),), default=0)
+
+    def isSubcategoryRelevant(self, gi):
+        if (gi.category == GI.GC_FRENCH):
+            return gi.subcategory == GI.GS_JOKER_DECK
+        if (gi.category == GI.GC_PUZZLE):
+            return True
+        return False
+
+    def getSubcategoryName(self, gi):
+        by_type = CSI.SUBTYPE_NAME.get(gi.category)
+        if not by_type:
+            return ""
+        return by_type.get(gi.subcategory, "")
+
+    def isCardCountRelevant(self, gi):
+        return (gi.category == GI.GC_TRUMP_ONLY or
+                gi.category == GI.GC_MATCHING)
 
     def selectCardset(self, title, key):
         wasPaused = False
